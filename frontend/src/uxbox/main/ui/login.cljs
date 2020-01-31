@@ -45,13 +45,24 @@
     [:strong "DO NOT USE"] " for real work, "
     " the projects will be periodicaly wiped."]])
 
+(mf/defc demo-warning2
+  [_]
+  [:div.message-inline
+   [:p {:style {:font-size "1em"}}
+    [:strong "WARNING"] [:br]
+    "This is a " [:strong "FOSDEM exclusive "] "instance and it will "
+    "remain active for 1 week from today. " [:br] [:br]
+
+    [:strong "DO NOT USE"] " it for real real work, this "
+    "is a DEMO instance."]])
+
 (mf/defc login-form
   []
   (let [{:keys [data] :as form} (fm/use-form ::login-form {})]
     [:form {:on-submit #(on-submit % form)}
      [:div.login-content
       (when cfg/demo-warning
-        [:& demo-warning])
+        [:& demo-warning2])
 
       [:input.input-text
        {:name "username"
