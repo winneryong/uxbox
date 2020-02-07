@@ -28,27 +28,27 @@
 (s/def ::password ::us/string)
 (s/def ::path ::us/string)
 (s/def ::user ::us/uuid)
-(s/def ::username ::us/string)
+(s/def ::profile-id ::us/uuid)
 
 ;; --- Query: Profile (own)
 
 (defn retrieve-profile
   [conn id]
-  (let [sql "select * from users where id=$1 and deleted_at is null"]
+  (let [sql "select * from profile where id=$1 and deleted_at is null"]
     (db/query-one db/pool [sql id])))
 
 (s/def ::profile
-  (s/keys :req-un [::user]))
+  (s/keys :req-un [::profile-id]))
 
 (sq/defquery ::profile
-  [{:keys [user] :as params}]
-  (-> (retrieve-profile db/pool user)
+  [{:keys [profile-id] :as params}]
+  (-> (retrieve-profile db/pool profile-id)
       (p/then' strip-private-attrs)
       (p/then' #(images/resolve-media-uris % [:photo :photo-uri]))))
 
 ;; --- Attrs Helpers
 
 (defn strip-private-attrs
-  "Only selects a publicy visible user attrs."
+  "Only selects a publicy visible profile attrs."
   [profile]
   (select-keys profile [:id :fullname :lang :email :created-at :photo]))

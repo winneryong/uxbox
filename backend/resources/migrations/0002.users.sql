@@ -74,7 +74,7 @@ CREATE TABLE team_profile_rel (
   profile_id uuid NOT NULL REFERENCES profile(id) ON DELETE RESTRICT,
 
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-  modified_at timestamptz NOT NULL DEFAULT clock_timestamp()
+  modified_at timestamptz NOT NULL DEFAULT clock_timestamp(),
 
   is_admin boolean DEFAULT false,
   is_owner boolean DEFAULT false,
@@ -124,9 +124,6 @@ CREATE TABLE password_recovery_token (
   PRIMARY KEY (profile_id, token)
 );
 
-CREATE INDEX password_recovery_token__profile_id__idx
-    ON password_recovery_token(profile_id);
-
 
 
 CREATE TABLE session (
@@ -136,7 +133,7 @@ CREATE TABLE session (
   modified_at timestamptz NOT NULL DEFAULT clock_timestamp(),
 
   profile_id uuid REFERENCES profile(id) ON DELETE CASCADE,
-  profile_agent text NULL
+  user_agent text NULL
 );
 
 CREATE INDEX session__profile_id__idx

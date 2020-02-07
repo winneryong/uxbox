@@ -13,7 +13,7 @@ CREATE INDEX project__team_id__idx
     ON project(team_id);
 
 CREATE TRIGGER project__modified_at__tgr
-BEFORE UPDATE ON projects
+BEFORE UPDATE ON project
    FOR EACH ROW EXECUTE PROCEDURE update_modified_at();
 
 
@@ -27,7 +27,7 @@ CREATE TABLE project_profile_rel (
 
   is_owner boolean DEFAULT false,
   is_admin boolean DEFAULT false,
-  can_edit boolean DEFAULT false
+  can_edit boolean DEFAULT false,
 
   PRIMARY KEY (profile_id, project_id)
 );
@@ -54,9 +54,6 @@ CREATE TABLE file (
   name text NOT NULL
 );
 
-CREATE INDEX file__profile_id__idx
-    ON file(profile_id);
-
 CREATE TRIGGER file__modified_at__tgr
 BEFORE UPDATE ON file
    FOR EACH ROW EXECUTE PROCEDURE update_modified_at();
@@ -72,16 +69,16 @@ CREATE TABLE file_profile_rel (
 
   is_owner boolean DEFAULT false,
   is_admin boolean DEFAULT false,
-  can_edit boolean DEFAULT false
+  can_edit boolean DEFAULT false,
 
-  PRIMARY KEY (user_id, file_id)
+  PRIMARY KEY (file_id, profile_id)
 );
 
 COMMENT ON TABLE file_profile_rel
      IS 'Relation between files and profiles (NM)';
 
-CREATE INDEX file_profile_rel__user_id__idx
-    ON file_profile_rel(user_id);
+CREATE INDEX file_profile_rel__profile_id__idx
+    ON file_profile_rel(profile_id);
 
 CREATE INDEX file_profile_rel__file_id__idx
     ON file_profile_rel(file_id);
@@ -109,14 +106,12 @@ CREATE TABLE file_image (
 CREATE INDEX file_image__file_id__idx
     ON file_image(file_id);
 
-CREATE INDEX file_image__profile_id__idx
-    ON file_image(profile_id);
 
 
 CREATE TABLE page (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   file_id uuid NOT NULL REFERENCES file(id) ON DELETE CASCADE,
-  profile_id uuid REFERENCES profile(id) ON SET NULL,
+  profile_id uuid REFERENCES profile(id) ON DELETE SET NULL,
 
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   modified_at timestamptz NOT NULL DEFAULT clock_timestamp(),
@@ -149,7 +144,7 @@ CREATE FUNCTION handle_page_update()
 
     --- Update projects modified_at attribute when a
     --- page of that project is modified.
-    UPDATE projects
+    UPDATE project
        SET modified_at = current_dt
      WHERE id = proj_id;
 
@@ -162,7 +157,7 @@ BEFORE UPDATE ON page
    FOR EACH ROW EXECUTE PROCEDURE handle_page_update();
 
 CREATE TRIGGER page__modified_at__tgr
-BEFORE UPDATE ON project_pages
+BEFORE UPDATE ON page
    FOR EACH ROW EXECUTE PROCEDURE update_modified_at();
 
 
@@ -170,7 +165,7 @@ BEFORE UPDATE ON project_pages
 CREATE TABLE page_version (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
 
-  page_id uuid NOT NULL REFERENCES project_pages(id) ON DELETE CASCADE,
+  page_id uuid NOT NULL REFERENCES page(id) ON DELETE CASCADE,
   profile_id uuid NULL REFERENCES profile(id) ON DELETE SET NULL,
 
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
@@ -198,7 +193,7 @@ BEFORE UPDATE ON page_version
 CREATE TABLE page_change (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
 
-  page_id uuid NOT NULL REFERENCES project_pages(id) ON DELETE CASCADE,
+  page_id uuid NOT NULL REFERENCES page(id) ON DELETE CASCADE,
   profile_id uuid NULL REFERENCES profile(id) ON DELETE SET NULL,
 
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),

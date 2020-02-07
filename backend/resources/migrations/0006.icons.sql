@@ -10,10 +10,10 @@ CREATE TABLE icon_collection (
 );
 
 CREATE INDEX icon_colection__profile_id__idx
-    ON icon_collections (profile_id);
+    ON icon_collection (profile_id);
 
-CREATE TRIGGER icon_collections__modified_at__tgr
-BEFORE UPDATE ON icon_collections
+CREATE TRIGGER icon_collection__modified_at__tgr
+BEFORE UPDATE ON icon_collection
    FOR EACH ROW EXECUTE PROCEDURE update_modified_at();
 
 
@@ -26,7 +26,7 @@ CREATE TABLE icon (
   modified_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   deleted_at timestamptz DEFAULT NULL,
 
-  collection_id uuid REFERENCES icon_collections(id)
+  collection_id uuid REFERENCES icon_collection(id)
                      ON DELETE CASCADE,
 
   name text NOT NULL,

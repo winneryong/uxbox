@@ -18,7 +18,7 @@ CREATE TABLE task (
 );
 
 CREATE INDEX task__scheduled_at__queue__idx
-    ON tasks (scheduled_at, queue);
+    ON task (scheduled_at, queue);
 
 CREATE TRIGGER task__modified_at__tgr
 BEFORE UPDATE ON task
@@ -37,5 +37,5 @@ CREATE TABLE scheduled_task (
 );
 
 CREATE TRIGGER scheduled_task__modified_at__tgr
-BEFORE UPDATE ON scheduled_tasks
+BEFORE UPDATE ON scheduled_task
    FOR EACH ROW EXECUTE PROCEDURE update_modified_at();

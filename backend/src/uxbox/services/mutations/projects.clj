@@ -22,6 +22,7 @@
 (s/def ::name ::us/string)
 (s/def ::token ::us/string)
 (s/def ::user ::us/uuid)
+(s/def ::profile-id ::us/uuid)
 
 ;; --- Permissions Checks
 

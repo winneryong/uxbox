@@ -33,7 +33,8 @@
   (let [type (keyword (get-in req [:path-params :type]))
         data (merge (:params req)
                     {::sq/type type
-                     :user (:user req)})]
+                     :user (:profile-id req)
+                     :profile-id (:profile-id req)})]
     (if (or (:user req)
             (isa? query-types-hierarchy type ::unauthenticated))
       (-> (sq/handle (with-meta data {:req req}))
@@ -51,8 +52,9 @@
                     (:body-params req)
                     (:uploads req)
                     {::sm/type type
-                     :user (:user req)})]
-    (if (or (:user req)
+                     :user (:profile-id req)
+                     :profile-id (:profile-id req)})]
+    (if (or (:profile-id req)
             (isa? mutation-types-hierarchy type ::unauthenticated))
       (-> (sm/handle (with-meta data {:req req}))
           (p/then' (fn [result]
@@ -81,18 +83,6 @@
                    {:status 204
                     :cookies {"auth-token" nil}
                     :body ""})))))
-
-;; (defn register-handler
-;;   [req]
-;;   (let [data (merge (:body-params req)
-;;                     {::sm/type :register-profile})
-;;         user-agent (get-in req [:headers "user-agent"])]
-;;     (-> (sm/handle (with-meta data {:req req}))
-;;         (p/then (fn [{:keys [id] :as user}]
-;;                   (session/create id user-agent)))
-;;         (p/then' (fn [token]
-;;                   {:status 204
-;;                    :body ""})))))
 
 (defn echo-handler
   [req]
