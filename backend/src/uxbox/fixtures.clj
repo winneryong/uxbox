@@ -12,6 +12,7 @@
    [mount.core :as mount]
    [promesa.core :as p]
    [uxbox.config :as cfg]
+   [uxbox.common.data :as d]
    [uxbox.core]
    [uxbox.db :as db]
    [uxbox.media :as media]
@@ -23,162 +24,241 @@
   [prefix & args]
   (uuid/namespaced uuid/oid (apply str prefix (interpose "-" args))))
 
-;; --- Users creation
+;; --- Profiles creation
 
-(def create-user-sql
-  "insert into users (id, fullname, username, email, password, photo)
-   values ($1, $2, $3, $4, $5, $6)
+(def sql:create-profile
+  "insert into profile (id, fullname, email, password, photo)
+   values ($1, $2, $3, $4, $5)
    returning *;")
 
 (def password (pwhash/derive "123123"))
 
-(defn create-user
-  [conn user-index]
-  (log/info "create user" user-index)
-  (let [sql create-user-sql
-        id (mk-uuid "user" user-index)
-        fullname (str "User " user-index)
-        username (str "user" user-index)
-        email (str "user" user-index ".test@uxbox.io")
+(defn create-profile
+  [conn profile-index]
+  (log/info "create profile" profile-index)
+  (let [sql sql:create-profile
+        id (mk-uuid "profile" profile-index)
+        fullname (str "Profile " profile-index)
+        email (str "profile" profile-index ".test@uxbox.io")
         photo ""]
-  (db/query-one conn [sql id fullname username email password photo])))
+  (db/query-one conn [sql id fullname email password photo])))
 
-;; --- Project User Relation Creation
 
-(def create-project-user-sql
-  "insert into project_users (project_id, user_id, can_edit)
-   values ($1, $2, true)
-  returning *")
+;; --- Teams Creation
 
-(defn create-additional-project-user
-  [conn [project-index user-index]]
-  (log/info "create project user" user-index project-index)
-  (let [sql create-project-user-sql
-        project-id (mk-uuid "project" project-index user-index)
-        user-id (mk-uuid "user" (dec user-index))]
-    (db/query-one conn [sql project-id user-id])))
+(def sql:create-team
+  "insert into team (id, name, photo)
+   values ($1, $2, $3)
+   returning *;")
+
+(defn create-team
+  [conn team-index]
+  (log/info "create team" team-index)
+  (let [sql sql:create-team
+        id (mk-uuid "team" team-index)
+        name (str "Team" team-index)]
+    (db/query-one conn [sql id name ""])))
+
+
+;; --- Team Profile Relation Creation
+
+(def sql:create-team-profile
+  "insert into team_profile_rel (team_id, profile_id, is_owner, is_admin, can_edit)
+   values ($1, $2, $3, $4, $5)
+   returning *;")
+
+(defn create-team-profile
+  [conn team-index owner? profile-index]
+  (log/info "create team profile" team-index profile-index)
+  (let [team-id (mk-uuid "team" team-index)
+        profile-id (mk-uuid "profile" profile-index)
+        sql sql:create-team-profile]
+    (db/query-one conn [sql team-id profile-id owner? true true])))
+
 
 ;; --- Projects creation
 
-(def create-project-sql
-  "insert into projects (id, user_id, name)
+(def sql:create-project
+  "insert into project (id, team_id, name)
    values ($1, $2, $3)
    returning *;")
 
 (defn create-project
-  [conn [project-index user-index]]
-  (log/info "create project" user-index project-index)
-  (let [sql create-project-sql
-        id (mk-uuid "project" project-index user-index)
-        user-id (mk-uuid "user" user-index)
-        name (str "project " project-index "," user-index)]
-    (p/do! (db/query-one conn [sql id user-id name])
-           (when (and (= project-index 0)
-                      (> user-index 0))
-             (create-additional-project-user conn [project-index user-index])))))
+  [conn team-index project-index]
+  (log/info "create project" team-index project-index)
+  (let [sql sql:create-project
+        id (mk-uuid "project" team-index project-index)
+        team-id (mk-uuid "team" team-index)
+        name (str "project " project-index)]
+    (db/query-one conn [sql id team-id name])))
+
+;; (create-project-profile-relation conn project-index profile-index)
+;; (when (and (= project-index 0)
+;;            (> profile-index 0))
+;;   (create-project-profile-relation conn project-index (dec profile-index) false)))))
+
+
+;; --- Project Profile Relation Creation
+
+(def sql:create-project-profile-relation
+  "insert into project_profile_rel (project_id, profile_id, is_owner, is_admin, can_edit)
+   values ($1, $2, $3, $4, $5)
+   returning *")
+
+(defn create-project-profile-relation
+  [conn team-index profile-index owner? project-index]
+  (log/info "create project profile" profile-index project-index)
+  (let [sql sql:create-project-profile-relation
+        team-id (mk-uuid "team" team-index)
+        project-id (mk-uuid "project" team-index project-index)
+        profile-id (mk-uuid "profile" profile-index)]
+    (db/query-one conn [sql project-id profile-id owner? true true])))
+
 
 ;; --- Create Page Files
 
-(def create-file-sql
-  "insert into project_files (id, user_id, project_id, name)
-   values ($1, $2, $3, $4) returning id")
+(def sql:create-project-file
+  "insert into file (id, project_id, name)
+   values ($1, $2, $3 ) returning *")
 
-(defn create-file
-  [conn [file-index project-index user-index]]
-  (log/info "create page file" user-index project-index file-index)
-  (let [sql create-file-sql
-        id (mk-uuid "page-file" file-index project-index user-index)
-        user-id (mk-uuid "user" user-index)
-        project-id (mk-uuid "project" project-index user-index)
-        name (str "file " file-index "," project-index "," user-index)]
-    (db/query-one conn [sql id user-id project-id name])))
+(defn create-project-file
+  [conn team-index project-index file-index]
+  (log/info "create project file" team-index project-index file-index)
+  (let [sql sql:create-project-file
+        id (mk-uuid "file" team-index project-index file-index)
+        project-id (mk-uuid "project" team-index project-index)
+        name (str "file " file-index "," project-index)]
+    (db/query-one conn [sql id project-id name])))
+
+(defn create-draft-file
+  [conn profile-index file-index]
+  (log/info "create draft file" profile-index file-index)
+  (let [sql sql:create-project-file
+        id (mk-uuid "draft-file" profile-index file-index)
+        name (str "file " file-index "," profile-index)]
+    (db/query-one conn [sql id nil name])))
 
 ;; --- Create Pages
 
-(def create-page-sql
-  "insert into project_pages (id, user_id, file_id, name,
-                      version, ordering, data)
-   values ($1, $2, $3, $4, $5, $6, $7)
+(def sql:create-project-page
+  "insert into page (id, file_id, name,
+                     version, ordering, data)
+   values ($1, $2, $3, $4, $5, $6)
    returning id;")
 
-(def create-page-history-sql
-  "insert into project_page_history (page_id, user_id, version, data)
-   values ($1, $2, $3, $4)
-   returning id;")
-
-(defn create-page
-  [conn [page-index file-index project-index user-index]]
-  (log/info "create page" user-index project-index file-index page-index)
-  (let [canvas {:id (mk-uuid "canvas" 1)
-                :name "Canvas-1"
-                :type :canvas
-                :x 200
-                :y 200
-                :width 1024
-                :height 768
-                :stroke-color "#000000"
-                :stroke-opacity 1
-                :fill-color "#ffffff"
-                :fill-opacity 1}
-        data {:version 1
+(defn create-project-page
+  [conn team-index project-index file-index page-index]
+  (log/info "create project page" team-index project-index file-index page-index)
+  (let [data {:version 1
               :shapes []
-              :canvas [(:id canvas)]
+              :canvas []
               :options {}
-              :shapes-by-id {(:id canvas) canvas}}
+              :shapes-by-id {}}
 
-        sql1 create-page-sql
-        sql2 create-page-history-sql
+        sql sql:create-project-page
 
-        id (mk-uuid "page" page-index file-index project-index user-index)
-        user-id (mk-uuid "user" user-index)
-        file-id (mk-uuid "page-file" file-index project-index user-index)
+        id (mk-uuid "page" team-index project-index file-index page-index)
+        file-id (mk-uuid "file" team-index project-index file-index)
         name (str "page " page-index)
         version 0
         ordering page-index
         data (blob/encode data)]
-    (p/do!
-     (db/query-one conn [sql1 id user-id file-id name version ordering data])
-     #_(db/query-one conn [sql2 id user-id version data]))))
+    (db/query-one conn [sql id file-id name version ordering data])))
+
+
+(defn create-page
+  [conn profile-index file-index page-index]
+  (log/info "create draft page" profile-index file-index page-index)
+  (let [data {:version 1
+              :shapes []
+              :canvas []
+              :options {}
+              :shapes-by-id {}}
+
+        sql sql:create-project-page
+
+        id (mk-uuid "draft-page" profile-index file-index page-index)
+        file-id (mk-uuid "draft-file" profile-index file-index)
+        name (str "page " page-index)
+        version 0
+        ordering page-index
+        data (blob/encode data)]
+    (db/query-one conn [sql id file-id name version ordering data])))
 
 (def preset-small
-  {:users 50
-   :projects 5
-   :files 5
-   :pages 3})
+  {:profiles 100
+   :profiles-in-team 5
+   :num-projects-per-team 5
+   :num-files-per-project 5
+   :num-pages-per-file 3
+   :num-draft-files-per-profile 10
+   :num-draft-pages-per-file 3})
 
 (def preset-medium
-  {:users 500
-   :projects 20
-   :files 5
-   :pages 3})
+  {:profiles 1000
+   :profiles-in-team 5
+   :num-projects-per-team 5
+   :num-files-per-project 5
+   :num-pages-per-file 3
+   :num-draft-files-per-profile 10
+   :num-draft-pages-per-file 3})
 
 (def preset-big
-  {:users 5000
-   :projects 50
-   :files 5
-   :pages 4})
+  {:profiles 5000
+   :profiles-in-team 5
+   :num-projects-per-team 3
+   :num-files-per-project 3
+   :num-pages-per-file 5
+   :num-draft-files-per-profile 10
+   :num-draft-pages-per-file 3})
 
 (defn run
   [opts]
-  (db/with-atomic [conn db/pool]
-    (p/do!
-     (p/run! #(create-user conn %) (range (:users opts)))
-     (p/run! #(create-project conn %)
-             (for [user-index    (range (:users opts))
-                   project-index (range (:projects opts))]
-               [project-index user-index]))
-     (p/run! #(create-file conn %)
-             (for [user-index    (range (:users opts))
-                   project-index (range (:projects opts))
-                   file-index  (range (:files opts))]
-               [file-index project-index user-index]))
-     (p/run! #(create-page conn %)
-             (for [user-index    (range (:users opts))
-                   project-index (range (:projects opts))
-                   file-index  (range (:files opts))
-                   page-index    (range (:pages opts))]
-               [page-index file-index project-index user-index]))
-     (p/promise nil))))
+  (letfn [(create-team-with-profiles [conn [team-index ids]]
+            (p/do!
+             (p/run! (partial create-profile conn) ids)
+             (create-team conn team-index)
+             (create-team-profile conn team-index true (first ids))
+             (p/run! (partial create-team-profile conn team-index false) (rest ids))
+             (create-projects-for-team conn team-index)))
+
+          (create-projects-for-team [conn team-index]
+            (p/do!
+             (p/run! (partial create-project conn team-index)
+                     (range (:num-projects-per-team opts)))
+             (p/run! (partial create-files-for-project conn team-index)
+                     (range (:num-projects-per-team opts)))))
+
+          (create-files-for-project [conn team-index project-index]
+            (p/do!
+             (p/run! (partial create-project-file conn team-index project-index)
+                     (range (:num-files-per-project opts)))
+             (p/run! (partial create-pages-for-file conn team-index project-index)
+                     (range (:num-files-per-project opts)))))
+
+          (create-pages-for-file [conn team-index project-index file-index]
+            (p/run! (partial create-project-page conn team-index project-index file-index)
+                    (range (:num-pages-per-file opts))))
+
+          (create-draft-files [conn profile-index]
+            (p/do!
+             (p/run! (partial create-draft-file conn profile-index)
+                     (range (:num-draft-files-per-profile opts)))
+             (p/run! (partial create-draft-pages conn profile-index)
+                     (range (:num-draft-files-per-profile opts)))))
+
+          (create-draft-pages [conn profile-index file-index]
+            (p/run! (partial create-page conn profile-index file-index)
+                    (range (:num-draft-pages-per-file opts))))
+
+          ]
+    (db/with-atomic [conn db/pool]
+      (p/run! (partial create-team-with-profiles conn)
+              (->> (range (:profiles opts))
+                   (partition-all (:profiles-in-team opts))
+                   (d/enumerate)))
+      (p/run! (partial create-draft-files conn)
+              (range (:profiles opts))))))
 
 (defn -main
   [& args]
