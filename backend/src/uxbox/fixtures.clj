@@ -70,9 +70,9 @@
    returning id;")
 
 (def preset-small
-  {:num-teams 50
-   :num-profiles 50
-   :num-profiles-per-team 3
+  {:num-teams 300
+   :num-profiles 300
+   :num-profiles-per-team 5
    :num-projects-per-team 5
    :num-files-per-project 5
    :num-pages-per-file 3

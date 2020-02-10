@@ -41,7 +41,6 @@
 (s/def ::lang ::us/string)
 (s/def ::path ::us/string)
 (s/def ::profile-id ::us/uuid)
-(s/def ::profile-id ::us/uuid)
 (s/def ::password ::us/string)
 (s/def ::old-password ::us/string)
 
@@ -193,7 +192,9 @@
 
 (defn- update-profile-photo
   [conn profile-id path]
-  (let [sql "update profile set photo=$1 where id=$2 and deleted_at is null returning id"]
+  (let [sql "update profile set photo=$1
+              where id=$2 and deleted_at is null
+             returning id"]
     (-> (db/query-one conn [sql (str path) profile-id])
         (p/then' su/raise-not-found-if-nil))))
 
@@ -220,7 +221,7 @@
    values ($1, $2, $3, $4, '') returning *")
 
 (def ^:private sql:insert-email
-  "insert into profile_emails (profile_id, email, is_main)
+  "insert into profile_email (profile_id, email, is_main)
    values ($1, $2, true)")
 
 (def ^:private sql:profile-existence
@@ -271,7 +272,7 @@
   (s/keys :req-un [::email]))
 
 (def sql:insert-recovery-token
-  "insert into tokens (profile_id, token) values ($1, $2)")
+  "insert into password_recovery_token (profile_id, token) values ($1, $2)")
 
 (sm/defmutation ::request-profile-recovery
   [{:keys [email] :as params}]

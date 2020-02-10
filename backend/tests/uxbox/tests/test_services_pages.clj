@@ -1,4 +1,4 @@
-(ns uxbox.tests.test-services-project-pages
+(ns uxbox.tests.test-services-pages
   (:require
    [clojure.spec.alpha :as s]
    [clojure.test :as t]
@@ -13,14 +13,17 @@
 (t/use-fixtures :once th/state-init)
 (t/use-fixtures :each th/database-reset)
 
-(t/deftest query-project-pages
-  (let [user @(th/create-user db/pool 1)
-        proj @(th/create-project db/pool (:id user) 1)
-        file @(th/create-project-file db/pool (:id user) (:id proj) 1)
-        page @(th/create-project-page db/pool (:id user) (:id file) 1)
-        data {::sq/type :project-pages
+(t/deftest query-pages
+  (let [prof @(th/create-profile db/pool 1)
+        file @(th/create-file db/pool {:profile-id (:id prof)
+                                       :index 1})
+        page @(th/create-page db/pool {:profile-id (:id prof)
+                                       :file-id (:id file)
+                                       :index 1})
+
+        data {::sq/type :pages
               :file-id (:id file)
-              :user (:id user)}
+              :profile-id (:id prof)}
         out (th/try-on! (sq/handle data))]
     ;; (th/print-result! out)
     (t/is (nil? (:error out)))
@@ -30,61 +33,37 @@
     (t/is (:id file) (get-in out [:result 0 :file-id]))))
 
 (t/deftest mutation-create-project-page
-  (let [user @(th/create-user db/pool 1)
-        proj @(th/create-project db/pool (:id user) 1)
-        pf   @(th/create-project-file db/pool (:id user) (:id proj) 1)
-
-        data {::sm/type :create-project-page
+  (let [prof @(th/create-profile db/pool 1)
+        file @(th/create-file db/pool {:profile-id (:id prof)
+                                       :index 1})
+        data {::sm/type :create-page
               :data {:canvas []
                      :options {}
                      :shapes []
                      :shapes-by-id {}}
-              :file-id (:id pf)
+              :file-id (:id file)
               :ordering 1
               :name "test page"
-              :user (:id user)}
+              :profile-id (:id prof)}
         out (th/try-on! (sm/handle data))]
     ;; (th/print-result! out)
     (t/is (nil? (:error out)))
     (t/is (uuid? (get-in out [:result :id])))
-    (t/is (= (:user data) (get-in out [:result :user-id])))
     (t/is (= (:name data) (get-in out [:result :name])))
     (t/is (= (:data data) (get-in out [:result :data])))
     (t/is (= 0 (get-in out [:result :version])))))
 
-(t/deftest mutation-update-project-page-data
-  (let [user @(th/create-user db/pool 1)
-        proj @(th/create-project db/pool (:id user) 1)
-        file @(th/create-project-file db/pool (:id user) (:id proj) 1)
-        page @(th/create-project-page db/pool (:id user) (:id file) 1)
-        data {::sm/type :update-project-page-data
-              :id (:id page)
-              :data {:shapes [(uuid/next)]
-                     :options {}
-                     :canvas []
-                     :shapes-by-id {}}
-              :file-id (:id file)
-              :user (:id user)}
-        out (th/try-on! (sm/handle data))]
-
-    ;; (th/print-result! out)
-    ;; TODO: check history creation
-    ;; TODO: check correct page data update operation
-
-    (t/is (nil? (:error out)))
-    (t/is (= (:id data) (get-in out [:result :id])))
-    (t/is (= 1 (get-in out [:result :version])))))
-
 (t/deftest mutation-update-project-page-1
-  (let [user @(th/create-user db/pool 1)
-        proj @(th/create-project db/pool (:id user) 1)
-        file @(th/create-project-file db/pool (:id user) (:id proj) 1)
-        page @(th/create-project-page db/pool (:id user) (:id file) 1)
-
-        data {::sm/type :update-project-page
+  (let [prof @(th/create-profile db/pool 1)
+        file @(th/create-file db/pool {:profile-id (:id prof)
+                                       :index 1})
+        page @(th/create-page db/pool {:profile-id (:id prof)
+                                       :file-id (:id file)
+                                       :index 1})
+        data {::sm/type :update-page
               :id (:id page)
-              :version 99
-              :user (:id user)
+              :revn 99
+              :profile-id (:id prof)
               :changes []}
 
         out (th/try-on! (sm/handle data))]
@@ -98,19 +77,20 @@
     (let [error (ex-cause (:error out))]
       (t/is (th/ex-info? error))
       (t/is (th/ex-of-type? error :validation))
-      (t/is (th/ex-of-code? error :version-conflict)))))
+      (t/is (th/ex-of-code? error :revn-conflict)))))
 
 (t/deftest mutation-update-project-page-2
-  (let [user @(th/create-user db/pool 1)
-        proj @(th/create-project db/pool (:id user) 1)
-        file @(th/create-project-file db/pool (:id user) (:id proj) 1)
-        page @(th/create-project-page db/pool (:id user) (:id file) 1)
-
+  (let [prof @(th/create-profile db/pool 1)
+        file @(th/create-file db/pool {:profile-id (:id prof)
+                                       :index 1})
+        page @(th/create-page db/pool {:profile-id (:id prof)
+                                       :file-id (:id file)
+                                       :index 1})
         sid  (uuid/next)
-        data {::sm/type :update-project-page
+        data {::sm/type :update-page
               :id (:id page)
-              :version 0
-              :user (:id user)
+              :revn 0
+              :profile-id (:id prof)
               :changes [{:type :add-shape
                          :id sid
                          :session-id (uuid/next)
@@ -122,24 +102,23 @@
 
     ;; (th/print-result! out)
     (t/is (nil? (:error out)))
-
-    (t/is (= 1 (get-in out [:result :version])))
+    (t/is (= 1 (get-in out [:result :revn])))
     (t/is (= (:id page) (get-in out [:result :page-id])))
     (t/is (= :add-shape (get-in out [:result :changes 0 :type])))
     ))
 
 (t/deftest mutation-update-project-page-3
-  (let [user @(th/create-user db/pool 1)
-        proj @(th/create-project db/pool (:id user) 1)
-        file @(th/create-project-file db/pool (:id user) (:id proj) 1)
-        page @(th/create-project-page db/pool (:id user) (:id file) 1)
-
+  (let [prof @(th/create-profile db/pool 1)
+        file @(th/create-file db/pool {:profile-id (:id prof)
+                                       :index 1})
+        page @(th/create-page db/pool {:profile-id (:id prof)
+                                       :file-id (:id file)
+                                       :index 1})
         sid  (uuid/next)
-
-        data {::sm/type :update-project-page
+        data {::sm/type :update-page
               :id (:id page)
-              :version 0
-              :user (:id user)
+              :revn 0
+              :profile-id (:id prof)
               :changes [{:type :add-shape
                          :id sid
                          :session-id (uuid/next)
@@ -164,13 +143,16 @@
     ))
 
 (t/deftest mutation-delete-project-page
-  (let [user @(th/create-user db/pool 1)
-        proj @(th/create-project db/pool (:id user) 1)
-        file @(th/create-project-file db/pool (:id user) (:id proj) 1)
-        page @(th/create-project-page db/pool (:id user) (:id file) 1)
-        data {::sm/type :delete-project-page
+  (let [prof @(th/create-profile db/pool 1)
+        file @(th/create-file db/pool {:profile-id (:id prof)
+                                       :index 1})
+        page @(th/create-page db/pool {:profile-id (:id prof)
+                                       :file-id (:id file)
+                                       :index 1})
+
+        data {::sm/type :delete-page
               :id (:id page)
-              :user (:id user)}
+              :profile-id (:id prof)}
         out (th/try-on! (sm/handle data))]
     ;; (th/print-result! out)
     (t/is (nil? (:error out)))

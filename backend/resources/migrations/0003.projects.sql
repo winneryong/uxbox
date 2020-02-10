@@ -111,21 +111,19 @@ CREATE INDEX file_image__file_id__idx
 CREATE TABLE page (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   file_id uuid NOT NULL REFERENCES file(id) ON DELETE CASCADE,
-  profile_id uuid REFERENCES profile(id) ON DELETE SET NULL,
 
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   modified_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   deleted_at timestamptz DEFAULT NULL,
 
-  version bigint NOT NULL,
+  version bigint NOT NULL DEFAULT 0,
+  revn bigint NOT NULL DEFAULT 0,
+
   ordering smallint NOT NULL,
 
   name text NOT NULL,
   data bytea NOT NULL
 );
-
-CREATE INDEX page__profile_id__idx
-    ON page(profile_id);
 
 CREATE INDEX page__file_id__idx
     ON page(file_id);
@@ -192,23 +190,18 @@ BEFORE UPDATE ON page_version
 
 CREATE TABLE page_change (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-
   page_id uuid NOT NULL REFERENCES page(id) ON DELETE CASCADE,
-  profile_id uuid NULL REFERENCES profile(id) ON DELETE SET NULL,
 
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   modified_at timestamptz NOT NULL DEFAULT clock_timestamp(),
 
-  rev bigint NOT NULL DEFAULT 0,
+  revn bigint NOT NULL DEFAULT 0,
 
   label text NOT NULL DEFAULT '',
   data bytea NOT NULL,
 
-  operations bytea NULL DEFAULT NULL
+  changes bytea NULL DEFAULT NULL
 );
-
-CREATE INDEX page_change__profile_id__idx
-    ON page_change(profile_id);
 
 CREATE INDEX page_change__page_id__idx
     ON page_change(page_id);
