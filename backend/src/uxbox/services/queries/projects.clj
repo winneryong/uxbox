@@ -23,7 +23,6 @@
 (s/def ::token ::us/string)
 (s/def ::user ::us/uuid)
 
-
 ;; --- Query: Projects
 
 (def sql:projects

@@ -186,79 +186,95 @@
     (db/query-one conn [sql id file-id name version ordering data])))
 
 (def preset-small
-  {:profiles 100
-   :profiles-in-team 5
+  {:num-profiles 100
+   :num-teams 10
+   :num-teams-per-profile 3
    :num-projects-per-team 5
    :num-files-per-project 5
    :num-pages-per-file 3
    :num-draft-files-per-profile 10
    :num-draft-pages-per-file 3})
 
-(def preset-medium
-  {:profiles 1000
-   :profiles-in-team 5
-   :num-projects-per-team 5
-   :num-files-per-project 5
-   :num-pages-per-file 3
-   :num-draft-files-per-profile 10
-   :num-draft-pages-per-file 3})
-
-(def preset-big
-  {:profiles 5000
-   :profiles-in-team 5
-   :num-projects-per-team 3
-   :num-files-per-project 3
-   :num-pages-per-file 5
-   :num-draft-files-per-profile 10
-   :num-draft-pages-per-file 3})
+(defn rng-ids
+  [rng n max]
+  (let [stream (->> (.longs rng 0 max)
+                    (.iterator)
+                    (iterator-seq))]
+    (reduce (fn [acc item]
+              (if (= (count acc) n)
+                (reduced (vec acc))
+                (conj acc item)))
+            #{}
+            stream)))
 
 (defn run
   [opts]
-  (letfn [(create-team-with-profiles [conn [team-index ids]]
-            (p/do!
-             (p/run! (partial create-profile conn) ids)
-             (create-team conn team-index)
-             (create-team-profile conn team-index true (first ids))
-             (p/run! (partial create-team-profile conn team-index false) (rest ids))
-             (create-projects-for-team conn team-index)))
+  (let [rng (java.util.Random. 1)
 
-          (create-projects-for-team [conn team-index]
-            (p/do!
-             (p/run! (partial create-project conn team-index)
-                     (range (:num-projects-per-team opts)))
-             (p/run! (partial create-files-for-project conn team-index)
-                     (range (:num-projects-per-team opts)))))
+        create-draft-pages
+        (fn [conn profile-index file-index]
+          (p/run! (partial create-page conn profile-index file-index)
+                  (range (:num-draft-pages-per-file opts))))
 
-          (create-files-for-project [conn team-index project-index]
-            (p/do!
-             (p/run! (partial create-project-file conn team-index project-index)
-                     (range (:num-files-per-project opts)))
-             (p/run! (partial create-pages-for-file conn team-index project-index)
-                     (range (:num-files-per-project opts)))))
 
-          (create-pages-for-file [conn team-index project-index file-index]
-            (p/run! (partial create-project-page conn team-index project-index file-index)
-                    (range (:num-pages-per-file opts))))
+        create-draft-files
+        (fn [conn profile-index]
+          (p/do!
+           (p/run! (partial create-draft-file conn profile-index)
+                   (range (:num-draft-files-per-profile opts)))
+           (p/run! (partial create-draft-pages conn profile-index)
+                   (range (:num-draft-files-per-profile opts)))))
 
-          (create-draft-files [conn profile-index]
-            (p/do!
-             (p/run! (partial create-draft-file conn profile-index)
-                     (range (:num-draft-files-per-profile opts)))
-             (p/run! (partial create-draft-pages conn profile-index)
-                     (range (:num-draft-files-per-profile opts)))))
+        create-pages-for-file
+        (fn [conn team-index project-index file-index]
+          (p/run! (partial create-project-page conn team-index project-index file-index)
+                  (range (:num-pages-per-file opts))))
 
-          (create-draft-pages [conn profile-index file-index]
-            (p/run! (partial create-page conn profile-index file-index)
-                    (range (:num-draft-pages-per-file opts))))
+        assign-random-teams-to-profile
+        (fn [conn profile-index]
+          (let [team-indexes (rng-ids rng
+                                      (:num-teams-per-profile opts)
+                                      (:num-teams opts))]
+            (p/run! #(create-team-profile conn % false profile-index)
+                    team-indexes)))
 
-          ]
+        create-files-for-project
+        (fn [conn team-index project-index]
+          (p/do!
+           (p/run! (partial create-project-file conn team-index project-index)
+                   (range (:num-files-per-project opts)))
+           (p/run! (partial create-pages-for-file conn team-index project-index)
+                   (range (:num-files-per-project opts)))))
+
+        create-projects-for-team
+        (fn [conn team-index]
+          (p/do!
+           (p/run! (partial create-project conn team-index)
+                   (range (:num-projects-per-team opts)))
+           (p/run! (partial create-files-for-project conn team-index)
+                   (range (:num-projects-per-team opts)))))
+
+        create-team-with-projects
+        (fn [conn team-index]
+          (log/info "create team" team-index)
+          (p/do!
+           (create-team conn team-index)
+           (create-projects-for-team conn team-index)))
+
+        ]
+
     (db/with-atomic [conn db/pool]
-      (p/run! (partial create-team-with-profiles conn)
-              (->> (range (:profiles opts))
-                   (partition-all (:profiles-in-team opts))
-                   (d/enumerate)))
+      (p/run! (partial create-profile conn)
+              (range (:num-profiles opts)))
+
+      (p/run! (partial create-team-with-projects conn)
+              (range (:num-teams opts)))
+
+      (p/run! (partial assign-random-teams-to-profile conn)
+              (range (:num-profiles opts)))
+
       (p/run! (partial create-draft-files conn)
-              (range (:profiles opts))))))
+              (range (:num-profiles opts))))))
 
 (defn -main
   [& args]
@@ -270,8 +286,8 @@
         (mount/start))
     (let [preset (case (first args)
                    (nil "small") preset-small
-                   "medium" preset-medium
-                   "big" preset-big
+                   ;; "medium" preset-medium
+                   ;; "big" preset-big
                    preset-small)]
       (log/info "Using preset:" (pr-str preset))
       (deref (run preset)))
