@@ -22,75 +22,83 @@
 (t/use-fixtures :once th/state-init)
 (t/use-fixtures :each th/database-reset)
 
-(t/deftest login-with-failed-auth
-  (let [profile @(th/create-profile db/pool 1)
-        event {::sm/type :login
-               :email "profile1.test@nodomain.com"
-               :password "foobar"
-               :scope "foobar"}
-        out (th/try-on! (sm/handle event))]
+(t/deftest login
+  (let [profile @(th/create-profile db/pool 1)]
+    (t/testing "failed"
+      (let [event {::sm/type :login
+                   :email "profile1.test@nodomain.com"
+                   :password "foobar"
+                   :scope "foobar"}
+            out (th/try-on! (sm/handle event))]
 
-    ;; (th/print-result! out)
-    (let [error (:error out)]
-      (t/is (th/ex-info? error))
-      (t/is (th/ex-of-type? error :service-error)))
+        ;; (th/print-result! out)
+        (let [error (:error out)]
+          (t/is (th/ex-info? error))
+          (t/is (th/ex-of-type? error :service-error)))
 
-    (let [error (ex-cause (:error out))]
-      (t/is (th/ex-info? error))
-      (t/is (th/ex-of-type? error :validation))
-      (t/is (th/ex-of-code? error :uxbox.services.mutations.profile/wrong-credentials)))))
+        (let [error (ex-cause (:error out))]
+          (t/is (th/ex-info? error))
+          (t/is (th/ex-of-type? error :validation))
+          (t/is (th/ex-of-code? error :uxbox.services.mutations.profile/wrong-credentials)))))
 
-(t/deftest login-with-success-auth
-  (let [profile @(th/create-profile db/pool 1)
-        event {::sm/type :login
-               :email "profile1.test@nodomain.com"
-               :password "123123"
-               :scope "foobar"}
-        out (th/try-on! (sm/handle event))]
-    ;; (th/print-result! out)
-    (t/is (nil? (:error out)))
-    (t/is (= (get-in out [:result :id]) (:id profile)))))
+    (t/testing "success"
+      (let [event {::sm/type :login
+                   :email "profile1.test@nodomain.com"
+                   :password "123123"
+                   :scope "foobar"}
+            out (th/try-on! (sm/handle event))]
+        ;; (th/print-result! out)
+        (t/is (nil? (:error out)))
+        (t/is (= (:id profile) (get-in out [:result :id])))))
+    ))
 
-(t/deftest query-profile
-  (let [profile @(th/create-profile db/pool 1)
-        data {::sq/type :profile
-              :profile-id (:id profile)}
+(t/deftest profile-query-and-manipulation
+  (let [profile @(th/create-profile db/pool 1)]
 
-        out (th/try-on! (sq/handle data))]
-    ;; (th/print-result! out)
-    (t/is (nil? (:error out)))
-    (t/is (= "Profile 1" (get-in out [:result :fullname])))
-    (t/is (= "profile1.test@nodomain.com" (get-in out [:result :email])))
-    (t/is (not (contains? (:result out) :password)))))
+    (t/testing "query profile"
+      (let [data {::sq/type :profile
+                  :profile-id (:id profile)}
+            out (th/try-on! (sq/handle data))]
 
-(t/deftest mutation-update-profile
-  (let [profile @(th/create-profile db/pool 1)
-        data (assoc profile
-                    ::sm/type :update-profile
-                    :fullname "Full Name"
-                    :profilename "profile222"
-                    :lang "en")
-        out (th/try-on! (sm/handle data))]
-    ;; (th/print-result! out)
-    (t/is (nil? (:error out)))
-    (t/is (= (:fullname data) (get-in out [:result :fullname])))
-    (t/is (= (:email data) (get-in out [:result :email])))
-    (t/is (= (:metadata data) (get-in out [:result :metadata])))
-    (t/is (not (contains? (:result out) :password)))))
+        ;; (th/print-result! out)
+        (t/is (nil? (:error out)))
 
-(t/deftest mutation-update-profile-photo
-  (let [profile  @(th/create-profile db/pool 1)
-        data {::sm/type :update-profile-photo
-              :profile-id (:id profile)
-              :file {:name "sample.jpg"
-                     :path "tests/uxbox/tests/_files/sample.jpg"
-                     :size 123123
-                     :mtype "image/jpeg"}}
-        out (th/try-on! (sm/handle data))]
+        (let [result (:result out)]
+          (t/is (= "Profile 1" (:fullname result)))
+          (t/is (= "profile1.test@nodomain.com" (:email result)))
+          (t/is (not (contains? result :password))))))
 
-    ;; (th/print-result! out)
-    (t/is (nil? (:error out)))
-    (t/is (= (:id profile) (get-in out [:result :id])))))
+    (t/testing "update profile"
+      (let [data (assoc profile
+                        ::sm/type :update-profile
+                        :fullname "Full Name"
+                        :name "profile222"
+                        :lang "en")
+            out (th/try-on! (sm/handle data))]
+
+        ;; (th/print-result! out)
+        (t/is (nil? (:error out)))
+
+        (let [result (:result out)]
+          (t/is (= (:fullname data) (:fullname result)))
+          (t/is (= (:email data) (:email result)))
+          (t/is (not (contains? result :password))))))
+
+    (t/testing "update photo"
+      (let [data {::sm/type :update-profile-photo
+                  :profile-id (:id profile)
+                  :file {:name "sample.jpg"
+                         :path "tests/uxbox/tests/_files/sample.jpg"
+                         :size 123123
+                         :mtype "image/jpeg"}}
+            out (th/try-on! (sm/handle data))]
+
+        ;; (th/print-result! out)
+        (t/is (nil? (:error out)))
+
+        (let [result (:result out)]
+          (t/is (= (:id profile) (:id result))))))
+    ))
 
 ;; (t/deftest test-mutation-register-profile
 ;;   (let[data {:fullname "Full Name"

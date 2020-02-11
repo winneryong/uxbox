@@ -70,9 +70,9 @@
 
 (defn create-profile
   [conn i]
-  (#'profile/create-profile conn {:id (mk-uuid "user" i)
-                                  :fullname (str "User " i)
-                                  :email (str "user" i ".test@nodomain.com")
+  (#'profile/create-profile conn {:id (mk-uuid "profile" i)
+                                  :fullname (str "Profile " i)
+                                  :email (str "profile" i ".test@nodomain.com")
                                   :password "123123"}))
 
 (defn create-team
@@ -89,9 +89,9 @@
                                    :name (str "project" i)}))
 
 ;; (defn create-project-file
-;;   [conn user-id project-id i]
+;;   [conn profile-id project-id i]
 ;;   (files/create-file conn {:id (mk-uuid "project-file" i)
-;;                            :user user-id
+;;                            :profile-id profile-id
 ;;                            :project-id project-id
 ;;                            :name (str "sample project file" i)}))
 
@@ -119,9 +119,9 @@
 
 
 ;; (defn create-project-page
-;;   [conn user-id file-id i]
+;;   [conn profile-id file-id i]
 ;;   (pages/create-page conn {:id (mk-uuid "page" i)
-;;                            :user user-id
+;;                            :profile-id profile-id
 ;;                            :file-id file-id
 ;;                            :name (str "page" i)
 ;;                            :ordering i
