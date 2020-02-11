@@ -22,7 +22,7 @@
 (t/use-fixtures :once th/state-init)
 (t/use-fixtures :each th/database-reset)
 
-(t/deftest login
+(t/deftest profile-login
   (let [profile @(th/create-profile db/pool 1)]
     (t/testing "failed"
       (let [event {::sm/type :login
