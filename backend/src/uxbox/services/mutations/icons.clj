@@ -45,7 +45,7 @@
 (sm/defmutation ::create-icons-collection
   [{:keys [id user name] :as params}]
   (let [id  (or id (uuid/next))
-        sql "insert into icon_collections (id, user_id, name)
+        sql "insert into icon_collection (id, user_id, name)
              values ($1, $2, $3) returning *"]
     (db/query-one db/pool [sql id user name])))
 
@@ -56,7 +56,7 @@
 
 (sm/defmutation ::update-icons-collection
   [{:keys [id user name] :as params}]
-  (let [sql "update icon_collections
+  (let [sql "update icon_collection
                 set name = $3
               where id = $1
                 and user_id = $2
@@ -70,7 +70,7 @@
 
 (defn- retrieve-icon
   [conn {:keys [user id]}]
-  (let [sql "select * from icons
+  (let [sql "select * from icon
               where id = $1
                 and deleted_at is null
                 and (user_id = $2 or
@@ -97,7 +97,7 @@
 
 (sm/defmutation ::delete-icons-collection
   [{:keys [user id] :as params}]
-  (let [sql "update icon_collections
+  (let [sql "update icon_collection
                 set deleted_at = clock_timestamp()
               where id = $1
                 and user_id = $2
@@ -109,7 +109,7 @@
 ;; --- Mutation: Create Icon (Upload)
 
 (def ^:private create-icon-sql
-  "insert into icons (user_id, name, collection_id, content, metadata)
+  "insert into icon (user_id, name, collection_id, content, metadata)
    values ($1, $2, $3, $4, $5) returning *")
 
 (defn create-icon
@@ -137,7 +137,7 @@
 
 (sm/defmutation ::update-icon
   [{:keys [id name user collection-id] :as params}]
-  (let [sql "update icons
+  (let [sql "update icon
                 set name = $1,
                     collection_id = $2
               where id = $3
@@ -153,7 +153,7 @@
 
 (sm/defmutation ::delete-icon
   [{:keys [id user] :as params}]
-  (let [sql "update icons
+  (let [sql "update icon
                 set deleted_at = clock_timestamp()
               where id = $1
                 and user_id = $2

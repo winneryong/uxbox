@@ -6,10 +6,11 @@
    [mount.core :as mount]
    [environ.core :refer [env]]
    [uxbox.services.mutations.profile :as profile]
-   ;; [uxbox.services.mutations.projects :as projects]
+   [uxbox.services.mutations.projects :as projects]
+   [uxbox.services.mutations.teams :as teams]
    [uxbox.services.mutations.files :as files]
    [uxbox.services.mutations.pages :as pages]
-   ;; [uxbox.services.mutations.images :as images]
+   [uxbox.services.mutations.images :as images]
    [uxbox.fixtures :as fixtures]
    [uxbox.migrations]
    [uxbox.media]
@@ -69,18 +70,23 @@
 
 (defn create-profile
   [conn i]
-  (profile/create-profile conn {:id (mk-uuid "user" i)
-                                :fullname (str "User " i)
-                                :email (str "user" i ".test@nodomain.com")
-                                :password "123123"}))
+  (#'profile/create-profile conn {:id (mk-uuid "user" i)
+                                  :fullname (str "User " i)
+                                  :email (str "user" i ".test@nodomain.com")
+                                  :password "123123"}))
 
-;; (defn create-project
-;;   [conn user-id i]
-;;   (projects/create-project conn {:id (mk-uuid "project" i)
-;;                                  :user user-id
-;;                                  :version 1
-;;                                  :name (str "sample project " i)}))
+(defn create-team
+  [conn profile-id i]
+  (#'teams/create-team conn {:id (mk-uuid "team" i)
+                             :profile-id profile-id
+                             :name (str "team" i)}))
 
+(defn create-project
+  [conn profile-id team-id i]
+  (#'projects/create-project conn {:id (mk-uuid "project" i)
+                                   :profile-id profile-id
+                                   :team-id team-id
+                                   :name (str "project" i)}))
 
 ;; (defn create-project-file
 ;;   [conn user-id project-id i]
@@ -125,14 +131,14 @@
 ;;                                   :canvas []
 ;;                                   :shapes-by-id {}}}))
 
-;; (defn create-images-collection
-;;   [conn user-id i]
-;;   (images/create-images-collection conn {:id (mk-uuid "imgcoll" i)
-;;                                          :user user-id
-;;                                          :name (str "image collection " i)}))
+(defn create-image-collection
+  [conn profile-id i]
+  (#'images/create-image-collection conn {:id (mk-uuid "imgcoll" i)
+                                          :profile-id profile-id
+                                          :name (str "image collection " i)}))
 
 (defn handle-error
-  [err]
+  [^Throwable err]
   (if (instance? java.util.concurrent.ExecutionException err)
     (handle-error (.getCause err))
     err))
@@ -178,10 +184,10 @@
       (println (:explain data))
 
       (= :service-error (:type data))
-      (print-error! (.getCause error))
+      (print-error! (.getCause ^Throwable error))
 
       :else
-      (.printStackTrace error))))
+      (.printStackTrace ^Throwable error))))
 
 (defn print-result!
   [{:keys [error result]}]

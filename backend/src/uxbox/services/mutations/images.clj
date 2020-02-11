@@ -32,64 +32,64 @@
 
 (s/def ::id ::us/uuid)
 (s/def ::name ::us/string)
-(s/def ::user ::us/uuid)
+(s/def ::profile-id ::us/uuid)
 
 ;; --- Create Collection
 
-(declare create-images-collection)
+(declare create-image-collection)
 
-(s/def ::create-images-collection
-  (s/keys :req-un [::user ::us/name]
+(s/def ::create-image-collection
+  (s/keys :req-un [::profile-id ::us/name]
           :opt-un [::id]))
 
-(sm/defmutation ::create-images-collection
-  [{:keys [id user name] :as params}]
+(sm/defmutation ::create-image-collection
+  [{:keys [id profile-id name] :as params}]
   (db/with-atomic [conn db/pool]
-    (create-images-collection conn params)))
+    (create-image-collection conn params)))
 
-(defn create-images-collection
-  [conn {:keys [id user name] :as params}]
+(defn- create-image-collection
+  [conn {:keys [id profile-id name] :as params}]
   (let [id  (or id (uuid/next))
-        sql "insert into image_collections (id, user_id, name)
+        sql "insert into image_collection (id, profile_id, name)
              values ($1, $2, $3)
              on conflict (id) do nothing
              returning *;"]
-    (db/query-one db/pool [sql id user name])))
+    (db/query-one db/pool [sql id profile-id name])))
 
 ;; --- Update Collection
 
 (def ^:private
-  sql:rename-images-collection
-  "update image_collections
+  sql:rename-image-collection
+  "update image_collection
       set name = $3
     where id = $1
-      and user_id = $2
+      and profile_id = $2
    returning *;")
 
-(s/def ::rename-images-collection
-  (s/keys :req-un [::id ::user ::us/name]))
+(s/def ::rename-image-collection
+  (s/keys :req-un [::id ::profile-id ::us/name]))
 
-(sm/defmutation ::rename-images-collection
-  [{:keys [id user name] :as params}]
+(sm/defmutation ::rename-image-collection
+  [{:keys [id profile-id name] :as params}]
   (db/with-atomic [conn db/pool]
-    (db/query-one conn [sql:rename-images-collection id user name])))
+    (db/query-one conn [sql:rename-image-collection id profile-id name])))
 
 ;; --- Delete Collection
 
-(s/def ::delete-images-collection
-  (s/keys :req-un [::user ::id]))
+(s/def ::delete-image-collection
+  (s/keys :req-un [::profile-id ::id]))
 
 (def ^:private
-  sql:delete-images-collection
-  "update image_collections
+  sql:delete-image-collection
+  "update image_collection
       set deleted_at = clock_timestamp()
     where id = $1
-      and user_id = $2
+      and profile_id = $2
    returning id")
 
-(sm/defmutation ::delete-images-collection
-  [{:keys [id user] :as params}]
-  (-> (db/query-one db/pool [sql:delete-images-collection id user])
+(sm/defmutation ::delete-image-collection
+  [{:keys [id profile-id] :as params}]
+  (-> (db/query-one db/pool [sql:delete-image-collection id profile-id])
       (p/then' su/raise-not-found-if-nil)))
 
 ;; --- Create Image (Upload)
@@ -117,27 +117,27 @@
 (s/def ::content ::upload)
 
 (s/def ::upload-image
-  (s/keys :req-un [::user ::name ::content ::collection-id]
+  (s/keys :req-un [::profile-id ::name ::content ::collection-id]
           :opt-un [::id]))
 
 (sm/defmutation ::upload-image
-  [{:keys [collection-id user] :as params}]
+  [{:keys [collection-id profile-id] :as params}]
   (db/with-atomic [conn db/pool]
     (p/let [coll (select-collection-for-update conn collection-id)]
-      (when (not= (:user-id coll) user)
+      (when (not= (:profile-id coll) profile-id)
         (ex/raise :type :validation
                   :code :not-authorized))
       (create-image conn params))))
 
 (def ^:private sql:insert-image
-  "insert into images
-      (id, collection_id, user_id, name, path, width, height, mtype,
+  "insert into image
+      (id, collection_id, profile_id, name, path, width, height, mtype,
        thumb_path, thumb_width, thumb_height, thumb_quality, thumb_mtype)
    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
    returning *")
 
 (defn create-image
-  [conn {:keys [id content collection-id user name] :as params}]
+  [conn {:keys [id content collection-id profile-id name] :as params}]
   (when-not (valid-image-types? (:mtype content))
     (ex/raise :type :validation
               :code :image-type-not-allowed
@@ -151,7 +151,7 @@
           sqlv [sql:insert-image
                 id
                 collection-id
-                user
+                profile-id
                 name
                 (str image-path)
                 (:width image-opts)
@@ -169,8 +169,8 @@
 
 (defn- select-collection-for-update
   [conn id]
-  (let [sql "select c.id, c.user_id
-               from image_collections as c
+  (let [sql "select c.id, c.profile_id
+               from image_collection as c
               where c.id = $1
                 and c.deleted_at is null
                  for update;"]
@@ -196,29 +196,29 @@
 ;; --- Update Image
 
 (s/def ::update-image
-  (s/keys :req-un [::id ::user ::name ::collection-id]))
+  (s/keys :req-un [::id ::profile-id ::name ::collection-id]))
 
 (def ^:private sql:update-image
-  "update images
+  "update image
       set name = $3,
           collection_id = $2
     where id = $1
-      and user_id = $4
+      and profile_id = $4
    returning *;")
 
 (sm/defmutation ::update-image
-  [{:keys [id name user collection-id] :as params}]
-  (db/query-one db/pool [sql:update-image id collection-id name user]))
+  [{:keys [id name profile-id collection-id] :as params}]
+  (db/query-one db/pool [sql:update-image id collection-id name profile-id]))
 
 ;; --- Copy Image
 
 (declare retrieve-image)
 
 ;; (s/def ::copy-image
-;;   (s/keys :req-un [::id ::collection-id ::user]))
+;;   (s/keys :req-un [::id ::collection-id ::profile-id]))
 
 ;; (sm/defmutation ::copy-image
-;;   [{:keys [user id collection-id] :as params}]
+;;   [{:keys [profile-id id collection-id] :as params}]
 ;;   (letfn [(copy-image [conn {:keys [path] :as image}]
 ;;             (-> (ds/lookup media/images-storage (:path image))
 ;;                 (p/then (fn [path] (ds/save media/images-storage (fs/name path) path)))
@@ -229,7 +229,7 @@
 ;;                 (p/then (partial store-image-in-db conn))))]
 
 ;;     (db/with-atomic [conn db/pool]
-;;       (-> (retrieve-image conn {:id id :user user})
+;;       (-> (retrieve-image conn {:id id :profile-id profile-id})
 ;;           (p/then su/raise-not-found-if-nil)
 ;;           (p/then (partial copy-image conn))))))
 
@@ -244,13 +244,15 @@
 ;;     @(ds/delete media/thumbnails-storage path)))
 
 (s/def ::delete-image
-  (s/keys :req-un [::id ::user]))
+  (s/keys :req-un [::id ::profile-id]))
 
 (sm/defmutation ::delete-image
-  [{:keys [user id] :as params}]
-  (let [sql "update images
+  [{:keys [profile-id id] :as params}]
+  (let [sql "update image
                 set deleted_at = clock_timestamp()
               where id = $1
-                and user_id = $2
-             returning *"]
-    (db/query-one db/pool [sql id user])))
+                and profile_id = $2
+             returning id"]
+    (-> (db/query-one db/pool [sql id profile-id])
+        (p/then' su/raise-not-found-if-nil)
+        (p/then' su/constantly-nil))))

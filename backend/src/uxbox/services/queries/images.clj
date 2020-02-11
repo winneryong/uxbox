@@ -23,71 +23,72 @@
 
 (s/def ::id ::us/uuid)
 (s/def ::name ::us/string)
-(s/def ::user ::us/uuid)
+(s/def ::profile-id ::us/uuid)
 (s/def ::collection-id (s/nilable ::us/uuid))
 
-;; --- Query: Images Collections
+;; --- Query: Image Collections
 
 (def ^:private sql:collections
   "select *,
-          (select count(*) from images where collection_id = ic.id) as num_images
-     from image_collections as ic
-    where (ic.user_id = $1 or
-           ic.user_id = '00000000-0000-0000-0000-000000000000'::uuid)
+          (select count(*) from image where collection_id = ic.id) as num_images
+     from image_collection as ic
+    where (ic.profile_id = $1 or
+           ic.profile_id = '00000000-0000-0000-0000-000000000000'::uuid)
       and ic.deleted_at is null
     order by ic.created_at desc;")
 
-(s/def ::images-collections
-  (s/keys :req-un [::user]))
+(s/def ::image-collections
+  (s/keys :req-un [::profile-id]))
 
-(sq/defquery ::images-collections
-  [{:keys [user] :as params}]
-  (db/query db/pool [sql:collections user]))
+(sq/defquery ::image-collections
+  [{:keys [profile-id] :as params}]
+  (db/query db/pool [sql:collections profile-id]))
 
 
 ;; --- Query: Image by ID
 
 (defn retrieve-image
   [conn id]
-  (let [sql "select * from images
+  (let [sql "select * from image
               where id = $1
                 and deleted_at is null;"]
     (db/query-one conn [sql id])))
 
 (s/def ::id ::us/uuid)
 (s/def ::image-by-id
-  (s/keys :req-un [::user ::id]))
+  (s/keys :req-un [::profile-id ::id]))
 
 (sq/defquery ::image-by-id
   [params]
   (-> (retrieve-image db/pool (:id params))
+      (p/then' su/raise-not-found-if-nil)
       (p/then' #(images/resolve-urls % :path :uri))
       (p/then' #(images/resolve-urls % :thumb-path :thumb-uri))))
 
 ;; --- Query: Images by collection ID
 
 (def sql:images-by-collection
-  "select * from images
-    where (user_id = $1 or
-           user_id = '00000000-0000-0000-0000-000000000000'::uuid)
+  "select * from image
+    where (profile_id = $1 or
+           profile_id = '00000000-0000-0000-0000-000000000000'::uuid)
       and deleted_at is null
    order by created_at desc")
 
 (def sql:images-by-collection
-  (str "with images as (" sql:images-by-collection ")
-        select im.* from images as im
+  (str "with image as (" sql:images-by-collection ")
+        select im.* from image as im
          where im.collection_id = $2"))
 
 (s/def ::images-by-collection
-  (s/keys :req-un [::user]
+  (s/keys :req-un [::profile-id]
           :opt-un [::collection-id]))
 
 ;; TODO: check if we can resolve url with transducer for reduce
 ;; garbage generation for each request
 
 (sq/defquery ::images-by-collection
-  [{:keys [user collection-id] :as params}]
-  (let [sqlv [sql:images-by-collection user collection-id]]
+  [{:keys [profile-id collection-id] :as params}]
+  (let [sqlv [sql:images-by-collection profile-id collection-id]]
     (-> (db/query db/pool sqlv)
         (p/then' (fn [rows]
                    (->> rows
