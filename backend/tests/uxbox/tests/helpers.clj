@@ -97,39 +97,25 @@
 
 
 (defn create-file
-  [conn {:keys [profile-id project-id index]}]
-  (#'files/create-file conn {:id (mk-uuid "file" index)
+  [conn profile-id project-id i]
+  (#'files/create-file conn {:id (mk-uuid "file" i)
                              :profile-id profile-id
                              :project-id project-id
-                             :name (str "file" index)}))
+                             :name (str "file" i)}))
 
 (defn create-page
-  [conn {:keys [profile-id file-id index]}]
-  (#'pages/create-page conn {:id (mk-uuid "page" index)
+  [conn profile-id file-id i]
+  (#'pages/create-page conn {:id (mk-uuid "page" i)
                              :profile-id profile-id
                              :file-id file-id
-                             :name (str "page" index)
-                             :ordering index
+                             :name (str "page" i)
+                             :ordering i
                              :data {:version 1
                                     :shapes []
                                     :options {}
                                     :canvas []
                                     :shapes-by-id {}}}))
 
-
-
-;; (defn create-project-page
-;;   [conn profile-id file-id i]
-;;   (pages/create-page conn {:id (mk-uuid "page" i)
-;;                            :profile-id profile-id
-;;                            :file-id file-id
-;;                            :name (str "page" i)
-;;                            :ordering i
-;;                            :data {:version 1
-;;                                   :shapes []
-;;                                   :options {}
-;;                                   :canvas []
-;;                                   :shapes-by-id {}}}))
 
 (defn create-image-collection
   [conn profile-id i]

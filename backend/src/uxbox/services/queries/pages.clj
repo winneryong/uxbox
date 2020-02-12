@@ -43,6 +43,7 @@
   "select p.*
      from page as p
     where p.file_id = $1
+      and p.deleted_at is null
     order by p.created_at asc")
 
 (defn- retrieve-pages

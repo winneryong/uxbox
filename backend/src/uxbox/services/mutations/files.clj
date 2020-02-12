@@ -203,7 +203,7 @@
   (s/keys :req-un [::image-id ::file-id ::profile-id]))
 
 (def ^:private sql:select-image-by-id
-  "select img.* from images as img where id=$1")
+  "select img.* from image as img where id=$1")
 
 (sm/defmutation ::import-image-to-file
   [{:keys [image-id file-id profile-id] :as params}]

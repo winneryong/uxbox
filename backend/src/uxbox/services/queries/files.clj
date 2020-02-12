@@ -41,6 +41,7 @@
      left join page as pg on (f.id = pg.file_id)
     where fp_r.profile_id = $1
       and f.project_id is null
+      and f.deleted_at is null
       and pg.deleted_at is null
       and (fp_r.is_admin = true or
            fp_r.is_owner = true or

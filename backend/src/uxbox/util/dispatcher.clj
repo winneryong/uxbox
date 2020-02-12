@@ -43,8 +43,7 @@
     (let [key (get params attr)
           f   (.get ^Map reg key)]
       (when (nil? f)
-        (ex/raise :type :not-found
-                  :code :method-not-found
+        (ex/raise :type :method-not-found
                   :hint "No method found for the current request."))
       (f params))))
 
