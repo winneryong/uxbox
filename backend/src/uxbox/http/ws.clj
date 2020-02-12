@@ -76,7 +76,6 @@
 
 (defn- on-eventbus-message
   [{:keys [file-id profile-id] :as ws} {:keys [body] :as message}]
-  (prn "on-eventbus-message" message)
   (send! ws body))
 
 (defn- start-eventbus-consumer!

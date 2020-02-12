@@ -121,13 +121,9 @@
 
 (sm/defmutation ::update-page
   [{:keys [id profile-id] :as params}]
-  (prn "update-page" 0)
   (db/with-atomic [conn db/pool]
-    (prn "update-page" 111)
     (p/let [{:keys [file-id] :as page} (select-page-for-update conn id)]
-      (prn "update-page" 222)
       (files/check-edition-permissions! conn profile-id file-id)
-      (prn "update-page" 333)
       (update-page conn page params))))
 
 (defn- update-page
@@ -150,13 +146,10 @@
                     :revn (inc (:revn page))
                     :changes (blob/encode changes))]
 
-    (prn "update-page")
-
     (-> (update-page-data conn page)
         (p/then (fn [_] (insert-page-change conn page)))
         (p/then (fn [s]
                   (let [topic (str "internal.uxbox.file." (:file-id page))]
-                    (prn "PUBLISH")
                     (p/do! (ve/publish! uxbox.core/system topic
                                         {:type :page-change
                                          :profile-id (:profile-id s)

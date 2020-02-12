@@ -75,14 +75,14 @@
 (defn initialize-ws
   [file-id]
   (ptk/reify ::initialize
-    ;; ptk/UpdateEvent
-    ;; (update [_ state]
-    ;;   (let [url (ws/url (str "/sub/" file-id))]
-    ;;     (assoc-in state [:ws file-id] (ws/open url))))
+    ptk/UpdateEvent
+    (update [_ state]
+      (let [url (ws/url (str "/sub/" file-id))]
+        (assoc-in state [:ws file-id] (ws/open url))))
 
     ptk/WatchEvent
     (watch [_ state stream]
-      #_(let [wsession (get-in state [:ws file-id])
+      (let [wsession (get-in state [:ws file-id])
             stoper (rx/filter #(= ::finalize-ws %) stream)]
         (->> (rx/merge
               (->> (ws/-stream wsession)
