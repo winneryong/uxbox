@@ -238,7 +238,7 @@
                              :code ::email-already-exists))
                  params))))
 
-(defn create-profile
+(defn- create-profile
   "Create the profile entry on the database with limited input
   filling all the other fields with defaults."
   [conn {:keys [id fullname email password] :as params}]

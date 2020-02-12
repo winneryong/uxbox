@@ -7,7 +7,6 @@
 (ns uxbox.http.session
   (:require
    [promesa.core :as p]
-   [sieppari.context :as spx]
    [vertx.core :as vc]
    [uxbox.db :as db]
    [uxbox.util.uuid :as uuid]))
@@ -37,7 +36,7 @@
 
 ;; --- Interceptor
 
-(defn parse-token
+(defn- parse-token
   [request]
   (try
     (when-let [token (get-in request [:cookies "auth-token"])]
@@ -45,12 +44,16 @@
     (catch java.lang.IllegalArgumentException e
       nil)))
 
-(defn auth
-  []
-  {:enter (fn [data]
-            (let [token (parse-token (:request data))]
-              (-> (retrieve token)
-                  (p/then' (fn [profile-id]
-                             (if profile-id
-                               (update data :request assoc :profile-id profile-id)
-                               data))))))})
+(defn- wrap-auth
+  [handler]
+  (fn [request]
+    (let [token (parse-token request)]
+      (-> (retrieve token)
+          (p/then (fn [profile-id]
+                    (if profile-id
+                      (handler (assoc request :profile-id profile-id))
+                      (handler request))))))))
+
+(def auth
+  {:nane ::auth
+   :compile (constantly wrap-auth)})

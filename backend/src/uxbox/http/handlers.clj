@@ -7,6 +7,7 @@
 (ns uxbox.http.handlers
   (:require
    [promesa.core :as p]
+   [uxbox.common.exceptions :as ex]
    [uxbox.emails :as emails]
    [uxbox.http.session :as session]
    [uxbox.services.init]
@@ -33,9 +34,8 @@
   (let [type (keyword (get-in req [:path-params :type]))
         data (merge (:params req)
                     {::sq/type type
-                     :user (:profile-id req)
                      :profile-id (:profile-id req)})]
-    (if (or (:user req)
+    (if (or (:profile-id req)
             (isa? query-types-hierarchy type ::unauthenticated))
       (-> (sq/handle (with-meta data {:req req}))
           (p/then' (fn [result]
@@ -52,7 +52,6 @@
                     (:body-params req)
                     (:uploads req)
                     {::sm/type type
-                     :user (:profile-id req)
                      :profile-id (:profile-id req)})]
     (if (or (:profile-id req)
             (isa? mutation-types-hierarchy type ::unauthenticated))
@@ -86,8 +85,8 @@
 
 (defn echo-handler
   [req]
-  {:status 200
-   :body {:params (:params req)
-          :cookies (:cookies req)
-          :headers (:headers req)}})
+  (p/promise {:status 200
+              :body {:params (:params req)
+                     :cookies (:cookies req)
+                     :headers (:headers req)}}))
 

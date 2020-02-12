@@ -11,8 +11,6 @@
    [clojure.spec.alpha :as s]
    [promesa.core :as p]
    [expound.alpha :as expound]
-   [sieppari.core :as sp]
-   [sieppari.context :as spx]
    [uxbox.common.exceptions :as ex])
   (:import
    clojure.lang.IDeref

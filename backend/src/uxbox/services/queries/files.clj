@@ -41,6 +41,7 @@
      left join page as pg on (f.id = pg.file_id)
     where fp_r.profile_id = $1
       and f.project_id is null
+      and pg.deleted_at is null
       and (fp_r.is_admin = true or
            fp_r.is_owner = true or
            fp_r.can_edit = true)
@@ -106,7 +107,7 @@
 (sq/defquery ::file-images
   [{:keys [profile-id file-id] :as params}]
   (db/with-atomic [conn db/pool]
-    (check-edition-permissions! conn file-id profile-id)
+    (check-edition-permissions! conn profile-id file-id)
     (retrieve-file-images conn params)))
 
 (def ^:private sql:file-images
@@ -121,6 +122,57 @@
                  (map #(images/resolve-urls % :thumb-path :thumb-uri)))]
     (-> (db/query conn sqlv)
         (p/then' #(into [] xf %)))))
+
+;; --- Query: File (By ID)
+
+(def ^:private sql:file
+  "select f.*,
+          array_agg(pg.id) over pages_w as pages
+     from file as f
+     left join page as pg on (f.id = pg.file_id)
+    where f.id = $1
+      and f.deleted_at is null
+      and pg.deleted_at is null
+   window pages_w as (partition by f.id order by pg.created_at
+                      range between unbounded preceding
+                                and unbounded following)")
+
+(def ^:private sql:file-users
+  "select pf.id, pf.fullname, pf.photo
+     from profile as pf
+    inner join file_profile_rel as fpr on (fpr.profile_id = pf.id)
+    where fpr.file_id = $1
+    union
+   select pf.id, pf.fullname, pf.photo
+     from profile as pf
+    inner join team_profile_rel as tpr on (tpr.profile_id = pf.id)
+    inner join project as p on (tpr.team_id = p.team_id)
+    inner join file as f on (p.id = f.project_id)
+    where f.id = $1")
+
+(s/def ::file-with-users
+  (s/keys :req-un [::profile-id ::id]))
+
+(sq/defquery ::file-with-users
+  [{:keys [profile-id id] :as params}]
+  (db/with-atomic [conn db/pool]
+    (check-edition-permissions! conn profile-id id)
+    (p/let [file  (-> (db/query-one conn [sql:file id])
+                      (p/then' su/raise-not-found-if-nil)
+                      (p/then' decode-row))
+            users (db/query conn [sql:file-users id])]
+      (assoc file :users users))))
+
+(s/def ::file
+  (s/keys :req-un [::profile-id ::id]))
+
+(sq/defquery ::file
+  [{:keys [profile-id id] :as params}]
+  (db/with-atomic [conn db/pool]
+    (check-edition-permissions! conn profile-id id)
+    (-> (db/query-one conn [sql:file id])
+        (p/then' su/raise-not-found-if-nil)
+        (p/then' decode-row))))
 
 ;; --- Query: Project Files
 
@@ -138,58 +190,6 @@
 ;;   [conn {:keys [profile-id project-id]}]
 ;;   (-> (db/query conn [sql:project-files profile-id project-id])
 ;;       (p/then' (partial mapv decode-row))))
-
-
-;; --- Query: File (By ID)
-
-;; (s/def ::project-file
-;;   (s/keys :req-un [::profile-id ::id]))
-
-;; (sq/defquery ::project-file
-;;   [{:keys [profile-id id] :as params}]
-;;   (-> (db/query-one db/pool [sql:project-file profile-id id])
-;;       (p/then' decode-row)))
-
-;; --- Query: Users of the File
-
-;; (declare retrieve-minimal-file)
-;; (declare retrieve-file-users)
-
-;; (s/def ::project-file-users
-;;   (s/keys :req-un [::profile-id ::file-id]))
-
-;; (sq/defquery ::project-file-users
-;;   [{:keys [profile-id file-id] :as params}]
-;;   (db/with-atomic [conn db/pool]
-;;     (-> (retrieve-minimal-file conn profile-id file-id)
-;;         (p/then #(retrieve-file-users conn %)))))
-
-;; (def ^:private sql:minimal-file
-;;   (str "with files as (" sql:generic-project-files ") "
-;;        "select id, project_id from files where id = $2"))
-
-;; (defn- retrieve-minimal-file
-;;   [conn profile-id file-id]
-;;   (-> (db/query-one conn [sql:minimal-file profile-id file-id])
-;;       (p/then' su/raise-not-found-if-nil)))
-
-;; (def ^:private sql:file-users
-;;   "select u.id, u.fullname, u.photo
-;;      from users as u
-;;      join project_file_users as pfu on (pfu.user_id = u.id)
-;;     where pfu.file_id = $1
-;;     union all
-;;    select u.id, u.fullname, u.photo
-;;      from users as u
-;;      join project_users as pu on (pu.user_id = u.id)
-;;     where pu.project_id = $2")
-
-;; (defn- retrieve-file-users
-;;   [conn {:keys [id project-id] :as file}]
-;;   (let [sqlv [sql:file-users id project-id]]
-;;     (db/query conn sqlv)))
-
-
 
 ;; --- Helpers
 
