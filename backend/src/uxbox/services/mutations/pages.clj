@@ -152,7 +152,7 @@
                   (let [topic (str "internal.uxbox.file." (:file-id page))]
                     (p/do! (ve/publish! uxbox.core/system topic
                                         {:type :page-change
-                                         :profile-id (:profile-id s)
+                                         :profile-id (:profile-id params)
                                          :page-id (:page-id s)
                                          :revn (:revn s)
                                          :changes changes})
@@ -178,7 +178,8 @@
   [conn {:keys [revn data changes] :as page}]
   (let [id (uuid/next)
         page-id (:id page)]
-    (db/query-one conn [sql:insert-page-change id page-id revn data changes])))
+    (db/query-one conn [sql:insert-page-change id
+                        page-id revn data changes])))
 
 (def ^:private sql:lagged-changes
   "select s.id, s.changes
