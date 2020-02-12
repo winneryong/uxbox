@@ -179,7 +179,7 @@
     (watch [this state stream]
       (let [name (str "New File " (gensym "p"))
             params {:name name :project-id project-id}]
-        (->> (rp/mutation! :create-project-file params)
+        (->> (rp/mutation! :create-file params)
              (rx/mapcat
               (fn [data]
                 (rx/of (files-fetched [data])
@@ -247,7 +247,7 @@
 
     ptk/WatchEvent
     (watch [_ state s]
-      (->> (rp/mutation :delete-project-file {:id id})
+      (->> (rp/mutation :delete-file {:id id})
            (rx/ignore)))))
 
 ;; --- Rename Project
@@ -263,7 +263,7 @@
     ptk/WatchEvent
     (watch [_ state stream]
       (let [params {:id id :name name}]
-        (->> (rp/mutation :rename-project-file params)
+        (->> (rp/mutation :rename-file params)
              (rx/ignore))))))
 
 ;; --- Go To Project
