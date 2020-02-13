@@ -14,6 +14,7 @@
    [sodi.prng]
    [sodi.util]
    [uxbox.common.exceptions :as ex]
+   [uxbox.config :as cfg]
    [uxbox.db :as db]
    [uxbox.services.mutations :as sm]
    [uxbox.services.mutations.profile :as profile]
@@ -39,8 +40,7 @@
 
       ;; Schedule deletion of the demo profile
       (tasks/schedule! conn {:name "delete-profile"
-                             :delay (tm/duration {:seconds 50})
-                             ;; :delay (tm/duration {:hours 48})
+                             :delay cfg/default-deletion-delay
                              :props {:profile-id id}})
       {:email email
        :password password})))

@@ -98,8 +98,6 @@
                   :name "testfile"
                   :content content}
             out (th/try-on! (sm/handle data))]
-        ;; out  (with-redefs [vc/*context* (vc/get-or-create-context system)]
-        ;;        (th/try-on! (sm/handle data)))]
 
         ;; (th/print-result! out)
         (t/is (nil? (:error out)))
@@ -116,9 +114,8 @@
         (t/is (string? (get-in out [:result :uri])))
         (t/is (string? (get-in out [:result :thumb-uri])))))
 
-
     (t/testing "list images by collection"
-      (let [data {::sq/type :images-by-collection
+      (let [data {::sq/type :images
                   :profile-id (:id profile)
                   :collection-id (:id coll)}
             out (th/try-on! (sq/handle data))]
@@ -136,8 +133,8 @@
         (t/is (string? (get-in out [:result 0 :uri])))
         (t/is (string? (get-in out [:result 0 :thumb-uri])))))
 
-    (t/testing "get image by id"
-      (let [data {::sq/type :image-by-id
+    (t/testing "single image"
+      (let [data {::sq/type :image
                   :profile-id (:id profile)
                   :id image-id}
             out (th/try-on! (sq/handle data))]
@@ -166,7 +163,7 @@
         (t/is (nil? (get-in out [:result])))))
 
     (t/testing "query image after delete"
-      (let [data {::sq/type :image-by-id
+      (let [data {::sq/type :image
                   :profile-id (:id profile)
                   :id image-id}
             out (th/try-on! (sq/handle data))]
@@ -181,7 +178,7 @@
           (t/is (th/ex-of-type? error :not-found)))))
 
     (t/testing "query images after delete"
-      (let [data {::sq/type :images-by-collection
+      (let [data {::sq/type :images
                   :profile-id (:id profile)
                   :collection-id (:id coll)}
             out (th/try-on! (sq/handle data))]

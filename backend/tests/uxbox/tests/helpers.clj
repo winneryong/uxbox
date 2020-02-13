@@ -11,6 +11,7 @@
    [uxbox.services.mutations.files :as files]
    [uxbox.services.mutations.pages :as pages]
    [uxbox.services.mutations.images :as images]
+   [uxbox.services.mutations.icons :as icons]
    [uxbox.fixtures :as fixtures]
    [uxbox.migrations]
    [uxbox.media]
@@ -114,6 +115,12 @@
   (#'images/create-image-collection conn {:id (mk-uuid "imgcoll" i)
                                           :profile-id profile-id
                                           :name (str "image collection " i)}))
+
+(defn create-icon-collection
+  [conn profile-id i]
+  (#'icons/create-icon-collection conn {:id (mk-uuid "imgcoll" i)
+                                        :profile-id profile-id
+                                        :name (str "icon collection " i)}))
 
 (defn handle-error
   [^Throwable err]

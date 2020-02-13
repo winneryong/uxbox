@@ -2,6 +2,9 @@
 ;; License, v. 2.0. If a copy of the MPL was not distributed with this
 ;; file, You can obtain one at http://mozilla.org/MPL/2.0/.
 ;;
+;; This Source Code Form is "Incompatible With Secondary Licenses", as
+;; defined by the Mozilla Public License, v. 2.0.
+;;
 ;; Copyright (c) 2019 Andrey Antukh <niwi@niwi.nz>
 
 (ns uxbox.services.queries.images
@@ -45,52 +48,52 @@
   (db/query db/pool [sql:collections profile-id]))
 
 
-;; --- Query: Image by ID
+
+;; --- Query: Image (by ID)
+
+(declare retrieve-image)
+
+(s/def ::id ::us/uuid)
+(s/def ::image
+  (s/keys :req-un [::profile-id ::id]))
+
+(sq/defquery ::image
+  [{:keys [id] :as params}]
+  (-> (retrieve-image db/pool id)
+      (p/then' #(images/resolve-urls % :path :uri))
+      (p/then' #(images/resolve-urls % :thumb-path :thumb-uri))))
 
 (defn retrieve-image
   [conn id]
   (let [sql "select * from image
               where id = $1
                 and deleted_at is null;"]
-    (db/query-one conn [sql id])))
+    (-> (db/query-one conn [sql id])
+        (p/then' su/raise-not-found-if-nil))))
 
-(s/def ::id ::us/uuid)
-(s/def ::image-by-id
-  (s/keys :req-un [::profile-id ::id]))
 
-(sq/defquery ::image-by-id
-  [params]
-  (-> (retrieve-image db/pool (:id params))
-      (p/then' su/raise-not-found-if-nil)
-      (p/then' #(images/resolve-urls % :path :uri))
-      (p/then' #(images/resolve-urls % :thumb-path :thumb-uri))))
 
-;; --- Query: Images by collection ID
+;; --- Query: Images (by collection)
 
-(def sql:images-by-collection
-  "select * from image
+(def ^:private sql:images
+  "select *
+     from image
     where (profile_id = $1 or
            profile_id = '00000000-0000-0000-0000-000000000000'::uuid)
       and deleted_at is null
+      and collection_id = $2
    order by created_at desc")
 
-(def sql:images-by-collection
-  (str "with image as (" sql:images-by-collection ")
-        select im.* from image as im
-         where im.collection_id = $2"))
-
-(s/def ::images-by-collection
-  (s/keys :req-un [::profile-id]
-          :opt-un [::collection-id]))
+(s/def ::images
+  (s/keys :req-un [::profile-id ::collection-id]))
 
 ;; TODO: check if we can resolve url with transducer for reduce
 ;; garbage generation for each request
 
-(sq/defquery ::images-by-collection
+(sq/defquery ::images
   [{:keys [profile-id collection-id] :as params}]
-  (let [sqlv [sql:images-by-collection profile-id collection-id]]
-    (-> (db/query db/pool sqlv)
-        (p/then' (fn [rows]
-                   (->> rows
-                        (mapv #(images/resolve-urls % :path :uri))
-                        (mapv #(images/resolve-urls % :thumb-path :thumb-uri))))))))
+  (-> (db/query db/pool [sql:images profile-id collection-id])
+      (p/then' (fn [rows]
+                 (->> rows
+                      (mapv #(images/resolve-urls % :path :uri))
+                      (mapv #(images/resolve-urls % :thumb-path :thumb-uri)))))))

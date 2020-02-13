@@ -28,6 +28,8 @@
 (s/def ::project-id ::us/uuid)
 (s/def ::file-id ::us/uuid)
 
+
+
 ;; --- Query: Pages (By File ID)
 
 (declare retrieve-pages)
@@ -36,10 +38,12 @@
   (s/keys :req-un [::profile-id ::file-id]))
 
 (sq/defquery ::pages
-  [params]
-  (retrieve-pages db/pool params))
+  [{:keys [profile-id file-id] :as params}]
+  (db/with-atomic [conn db/pool]
+    (files/check-edition-permissions! conn profile-id file-id)
+    (retrieve-pages conn params)))
 
-(def ^:private sql:pages-by-file-id
+(def ^:private sql:pages
   "select p.*
      from page as p
     where p.file_id = $1
@@ -48,31 +52,35 @@
 
 (defn- retrieve-pages
   [conn {:keys [profile-id file-id] :as params}]
-  (p/do!
-   (files/check-edition-permissions! conn profile-id file-id)
-   (-> (db/query conn [sql:pages-by-file-id file-id])
-       (p/then (partial mapv decode-row)))))
+  (-> (db/query conn [sql:pages file-id])
+      (p/then (partial mapv decode-row))))
+
+
 
 ;; --- Query: Single Page (By ID)
 
 (declare retrieve-page)
 
-(s/def ::project-page
+(s/def ::page
   (s/keys :req-un [::profile-id ::id]))
 
-(sq/defquery ::project-page
-  [params]
-  (retrieve-page db/pool params))
+(sq/defquery ::page
+  [{:keys [profile-id id] :as params}]
+  (db/with-atomic [conn db/pool]
+    (p/let [page (retrieve-page conn id)]
+      (files/check-edition-permissions! conn profile-id (:file-id page))
+      page)))
 
-(def ^:private sql:single-page
+(def ^:private sql:page
   "select p.* from page as p where id=$1")
 
 (defn retrieve-page
-  [conn {:keys [profile-id id] :as params}]
-  (p/let [{:keys [file-id] :as page} (-> (db/query-one conn [sql:single-page id])
-                                         (p/then' su/raise-not-found-if-nil))]
-    (files/check-edition-permissions! conn profile-id file-id)
-    (decode-row page)))
+  [conn id]
+  (-> (db/query-one conn [sql:page id])
+      (p/then' su/raise-not-found-if-nil)
+      (p/then' decode-row)))
+
+
 
 ;; --- Query: Project Page History (by Page ID)
 

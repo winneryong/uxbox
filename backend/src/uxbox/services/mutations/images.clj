@@ -7,8 +7,6 @@
 ;;
 ;; Copyright (c) 2019 Andrey Antukh <niwi@niwi.nz>
 
-;; TODO: need cosmetic refactor
-
 (ns uxbox.services.mutations.images
   (:require
    [clojure.spec.alpha :as s]
@@ -40,13 +38,16 @@
 (s/def ::id ::us/uuid)
 (s/def ::name ::us/string)
 (s/def ::profile-id ::us/uuid)
+(s/def ::collection-id ::us/uuid)
+
+
 
 ;; --- Create Collection
 
 (declare create-image-collection)
 
 (s/def ::create-image-collection
-  (s/keys :req-un [::profile-id ::us/name]
+  (s/keys :req-un [::profile-id ::name]
           :opt-un [::id]))
 
 (sm/defmutation ::create-image-collection
@@ -54,25 +55,42 @@
   (db/with-atomic [conn db/pool]
     (create-image-collection conn params)))
 
+(def ^:private sql:create-image-collection
+  "insert into image_collection (id, profile_id, name)
+   values ($1, $2, $3)
+   returning *;")
+
 (defn- create-image-collection
   [conn {:keys [id profile-id name] :as params}]
-  (let [id  (or id (uuid/next))
-        sql "insert into image_collection (id, profile_id, name)
-             values ($1, $2, $3)
-             on conflict (id) do nothing
-             returning *;"]
-    (db/query-one db/pool [sql id profile-id name])))
+  (let [id (or id (uuid/next))]
+    (db/query-one conn [sql:create-image-collection id profile-id name])))
 
 
 
-;; --- Update Collection
+;; --- Collection Permissions Check
 
-(def ^:private
-  sql:rename-image-collection
+(def ^:private sql:select-collection
+  "select id, profile_id
+     from image_collection
+    where id=$1 and deleted_at is null
+      for update")
+
+(defn- check-collection-edition-permissions!
+  [conn profile-id coll-id]
+  (p/let [coll (-> (db/query-one conn [sql:select-collection coll-id])
+                   (p/then' su/raise-not-found-if-nil))]
+    (when (not= (:profile-id coll) profile-id)
+      (ex/raise :type :validation
+                :code :not-authorized))))
+
+
+
+;; --- Rename Collection
+
+(def ^:private sql:rename-image-collection
   "update image_collection
-      set name = $3
+      set name = $2
     where id = $1
-      and profile_id = $2
    returning *;")
 
 (s/def ::rename-image-collection
@@ -81,7 +99,10 @@
 (sm/defmutation ::rename-image-collection
   [{:keys [id profile-id name] :as params}]
   (db/with-atomic [conn db/pool]
-    (db/query-one conn [sql:rename-image-collection id profile-id name])))
+    (check-collection-edition-permissions! conn profile-id id)
+    (db/query-one conn [sql:rename-image-collection id name])))
+
+
 
 ;; --- Delete Collection
 
@@ -92,27 +113,26 @@
   "update image_collection
       set deleted_at = clock_timestamp()
     where id = $1
-      and profile_id = $2
    returning id")
 
 (sm/defmutation ::delete-image-collection
   [{:keys [id profile-id] :as params}]
   (db/with-atomic [conn db/pool]
-    (-> (db/query-one db/pool [sql:mark-image-collection-as-deleted
-                               id profile-id])
-        (p/then' su/raise-not-found-if-nil)
-        (p/then' su/constantly-nil))
+    (check-collection-edition-permissions! conn profile-id id)
 
     ;; Schedule object deletion
     (tasks/schedule! conn {:name "delete-object"
                            :delay cfg/default-deletion-delay
                            :props {:id id :type :image-collection}})
-    nil))
+
+    (-> (db/query-one conn [sql:mark-image-collection-as-deleted id])
+        (p/then' su/raise-not-found-if-nil)
+        (p/then' su/constantly-nil))))
+
 
 
 ;; --- Create Image (Upload)
 
-(declare select-collection-for-update)
 (declare create-image)
 (declare persist-image-on-fs)
 (declare persist-image-thumbnail-on-fs)
@@ -131,7 +151,6 @@
                    :uxbox$upload/path
                    :uxbox$upload/mtype]))
 
-(s/def ::collection-id ::us/uuid)
 (s/def ::content ::upload)
 
 (s/def ::upload-image
@@ -141,11 +160,8 @@
 (sm/defmutation ::upload-image
   [{:keys [collection-id profile-id] :as params}]
   (db/with-atomic [conn db/pool]
-    (p/let [coll (select-collection-for-update conn collection-id)]
-      (when (not= (:profile-id coll) profile-id)
-        (ex/raise :type :validation
-                  :code :not-authorized))
-      (create-image conn params))))
+    (check-collection-edition-permissions! conn profile-id collection-id)
+    (create-image conn params)))
 
 (def ^:private sql:insert-image
   "insert into image
@@ -185,16 +201,6 @@
         (p/then' #(images/resolve-urls % :path :uri))
         (p/then' #(images/resolve-urls % :thumb-path :thumb-uri)))))
 
-(defn- select-collection-for-update
-  [conn id]
-  (let [sql "select c.id, c.profile_id
-               from image_collection as c
-              where c.id = $1
-                and c.deleted_at is null
-                 for update;"]
-    (-> (db/query-one conn [sql id])
-        (p/then' su/raise-not-found-if-nil))))
-
 (defn persist-image-on-fs
   [{:keys [name path] :as upload}]
   (vu/blocking
@@ -211,6 +217,8 @@
                          (str "thumbnail-" filename))]
      (ust/save! media/media-storage thumb-name thumb-data))))
 
+
+
 ;; --- Update Image
 
 (s/def ::update-image
@@ -226,11 +234,14 @@
 
 (sm/defmutation ::update-image
   [{:keys [id name profile-id collection-id] :as params}]
-  (db/query-one db/pool [sql:update-image id collection-id name profile-id]))
+  (-> (db/query-one db/pool [sql:update-image id
+                             collection-id name profile-id])
+      (p/then' su/raise-not-found-if-nil)))
+
 
 ;; --- Copy Image
 
-(declare retrieve-image)
+;; (declare retrieve-image)
 
 ;; (s/def ::copy-image
 ;;   (s/keys :req-un [::id ::collection-id ::profile-id]))
@@ -253,23 +264,27 @@
 
 ;; --- Delete Image
 
+(def ^:private sql:mark-image-deleted
+  "update image
+      set deleted_at = clock_timestamp()
+    where id = $1
+      and profile_id = $2
+    returning id")
+
 (s/def ::delete-image
   (s/keys :req-un [::id ::profile-id]))
 
 (sm/defmutation ::delete-image
   [{:keys [profile-id id] :as params}]
-  (let [sql "update image
-                set deleted_at = clock_timestamp()
-              where id = $1
-                and profile_id = $2
-             returning id"]
-    (db/with-atomic [conn db/pool]
-      ;; Schedule object deletion
-      (tasks/schedule! conn {:name "delete-object"
-                             :delay cfg/default-deletion-delay
-                             :props {:id id :type :image}})
+  (db/with-atomic [conn db/pool]
+    (-> (db/query-one conn [sql:mark-image-deleted id profile-id])
+        (p/then' su/raise-not-found-if-nil))
 
-      (-> (db/query-one conn [sql id profile-id])
-          (p/then' su/raise-not-found-if-nil)
-          (p/then' su/constantly-nil)))))
+    ;; Schedule object deletion
+    (tasks/schedule! conn {:name "delete-object"
+                           :delay cfg/default-deletion-delay
+                           :props {:id id :type :image}})
+
+    nil))
+
 

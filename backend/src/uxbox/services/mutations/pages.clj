@@ -34,6 +34,7 @@
 (s/def ::profile-id ::us/uuid)
 (s/def ::project-id ::us/uuid)
 (s/def ::ordering ::us/number)
+(s/def ::file-id ::us/uuid)
 
 ;; --- Mutation: Create Page
 
