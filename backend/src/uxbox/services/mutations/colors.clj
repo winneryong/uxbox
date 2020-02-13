@@ -39,9 +39,7 @@
 
 ;; --- Mutation: Create Collection
 
-(def ^:private sql:create-collection
-  "insert into color_collection (id, profile_id, name)
-   values ($1, $2, $3) returning *")
+(declare create-color-collection)
 
 (s/def ::create-color-collection
   (s/keys :req-un [::profile-id ::name]
@@ -49,14 +47,25 @@
 
 (sm/defmutation ::create-color-collection
   [{:keys [id profile-id name] :as params}]
-  (let [id  (or id (uuid/next))]
-    (db/query-one db/pool [sql:create-collection id profile-id name])))
+  (db/with-atomic [conn db/pool]
+    (create-color-collection conn params)))
+
+(def ^:private sql:create-color-collection
+  "insert into color_collection (id, profile_id, name)
+   values ($1, $2, $3)
+   returning *;")
+
+(defn- create-color-collection
+  [conn {:keys [id profile-id name] :as params}]
+  (let [id (or id (uuid/next))]
+    (db/query-one conn [sql:create-color-collection id profile-id name])))
+
 
 
 ;; --- Collection Permissions Check
 
 (def ^:private sql:select-collection
-  "select id, profile_d
+  "select id, profile_id
      from color_collection
     where id=$1 and deleted_at is null
       for update")
@@ -74,7 +83,7 @@
 
 (def ^:private sql:rename-collection
   "update color_collection
-      set name = $3
+      set name = $2
     where id = $1
    returning *")
 
@@ -149,13 +158,13 @@
     (create-color conn params)))
 
 (def ^:private sql:create-color
-  "insert into color (profile_id, name, collection_id, content)
+  "insert into color (id, profile_id, name, collection_id, content)
    values ($1, $2, $3, $4, $5) returning *")
 
 (defn create-color
   [conn {:keys [id profile-id name collection-id content]}]
-  (let [id  (or id (uuid/next))]
-    (-> (db/query-one conn [sql:create-color name collection-id content])
+  (let [id (or id (uuid/next))]
+    (-> (db/query-one conn [sql:create-color id profile-id name collection-id content])
         (p/then' decode-row))))
 
 

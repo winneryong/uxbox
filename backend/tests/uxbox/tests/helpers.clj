@@ -12,6 +12,7 @@
    [uxbox.services.mutations.pages :as pages]
    [uxbox.services.mutations.images :as images]
    [uxbox.services.mutations.icons :as icons]
+   [uxbox.services.mutations.colors :as colors]
    [uxbox.fixtures :as fixtures]
    [uxbox.migrations]
    [uxbox.media]
@@ -121,6 +122,11 @@
   (#'icons/create-icon-collection conn {:id (mk-uuid "imgcoll" i)
                                         :profile-id profile-id
                                         :name (str "icon collection " i)}))
+(defn create-color-collection
+  [conn profile-id i]
+  (#'colors/create-color-collection conn {:id (mk-uuid "imgcoll" i)
+                                          :profile-id profile-id
+                                          :name (str "color collection " i)}))
 
 (defn handle-error
   [^Throwable err]

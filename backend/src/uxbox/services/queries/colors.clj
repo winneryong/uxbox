@@ -77,3 +77,26 @@
   [{:keys [profile-id collection-id] :as params}]
   (-> (db/query db/pool [sql:colors profile-id collection-id])
       (p/then' #(mapv decode-row %))))
+
+
+
+;; --- Query: Color (by ID)
+
+(declare retrieve-color)
+
+(s/def ::id ::us/uuid)
+(s/def ::color
+  (s/keys :req-un [::profile-id ::id]))
+
+(sq/defquery ::color
+  [{:keys [id] :as params}]
+  (-> (retrieve-color db/pool id)
+      (p/then' su/raise-not-found-if-nil)))
+
+(defn retrieve-color
+  [conn id]
+  (let [sql "select * from color
+              where id = $1
+                and deleted_at is null;"]
+    (-> (db/query-one conn [sql id])
+        (p/then' su/raise-not-found-if-nil))))
