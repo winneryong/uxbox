@@ -324,3 +324,55 @@
           (p/then (fn [profile-id] (update-password conn profile-id)))))))
 
 
+
+;; --- Mutation: Delete Profile
+
+(declare check-teams-ownership!)
+(declare mark-profile-as-deleted!)
+
+(s/def ::delete-profile
+  (s/keys :req-un [::profile-id]))
+
+(sm/defmutation ::delete-profile
+  [{:keys [profile-id] :as params}]
+  (db/with-atomic [conn db/pool]
+    (check-teams-ownership! conn profile-id)
+
+    ;; Schedule a complete deletion of profile
+    (tasks/schedule! conn {:name "delete-profile"
+                           :delay (tm/duration {:hours 48})
+                           :props {:profile-id profile-id}})
+
+    (mark-profile-as-deleted! conn profile-id)))
+
+(def ^:private sql:teams-ownership-check
+  "with teams as (
+     select tpr.team_id as id
+       from team_profile_rel as tpr
+      where tpr.profile_id =  $1
+        and tpr.is_owner is true
+   )
+   select tpr.team_id,
+          count(tpr.profile_id) as num_profiles
+     from team_profile_rel as tpr
+    where tpr.team_id in (select id from teams)
+    group by tpr.team_id
+   having count(tpr.profile_id) > 1")
+
+(defn- check-teams-ownership!
+  [conn profile-id]
+  (-> (db/query conn [sql:teams-ownership-check profile-id])
+      (p/then' (fn [rows]
+                 (when-not (empty? rows)
+                   (ex/raise :type :validation
+                             :code :owner-teams-with-people
+                             :hint "The user need to transfer ownership of owned teams."
+                             :context {:teams (mapv :team-id rows)}))))))
+
+(def ^:private sql:mark-profile-deleted
+  "update profile set deleted_at=now() where id=$1")
+
+(defn- mark-profile-as-deleted!
+  [conn profile-id]
+  (-> (db/query-one conn [sql:mark-profile-deleted profile-id])
+      (p/then' su/constantly-nil)))

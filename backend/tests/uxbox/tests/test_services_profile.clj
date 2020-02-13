@@ -11,6 +11,7 @@
   (:require
    [clojure.test :as t]
    [clojure.java.io :as io]
+   [mockery.core :refer [with-mocks]]
    [promesa.core :as p]
    [cuerdas.core :as str]
    [datoteka.core :as fs]
@@ -99,6 +100,78 @@
         (let [result (:result out)]
           (t/is (= (:id profile) (:id result))))))
     ))
+
+(t/deftest profile-deletion-1
+  (with-mocks
+    [mock {:target 'uxbox.tasks/schedule! :return nil}]
+
+    (let [prof @(th/create-profile db/pool 1)
+          file @(th/create-file db/pool (:id prof) nil 1)
+          page @(th/create-page db/pool (:id prof) (:id file) 1)
+
+          data {::sm/type :delete-profile
+                :profile-id (:id prof)}
+
+          out  (th/try-on! (sm/handle data))]
+
+      ;; (th/print-result! out)
+
+      (t/is (nil? (:error out)))
+      (t/is (nil? (:result out)))
+
+      ;; check the mock
+      (let [mock (deref mock)
+            mock-params (second (:call-args mock))]
+        (t/is (true? (:called? mock)))
+        (t/is (= 1 (:call-count mock)))
+        (t/is (= "delete-profile" (:name mock-params)))
+        (t/is (= (:id prof) (get-in mock-params [:props :profile-id])))))))
+
+(t/deftest profile-deletion-2
+  (let [prof @(th/create-profile db/pool 1)]
+
+    (t/testing "query profile"
+      (let [data {::sq/type :profile
+                  :profile-id (:id prof)}
+            out (th/try-on! (sq/handle data))]
+
+        ;; (th/print-result! out)
+        (t/is (nil? (:error out)))
+        (t/is (map? (:result out)))))
+
+    (t/testing "delete profile"
+      (with-mocks
+        [mock {:target 'uxbox.tasks/schedule! :return nil}]
+
+        (let [data {::sm/type :delete-profile
+                    :profile-id (:id prof)}
+              out  (th/try-on! (sm/handle data))]
+          ;; (th/print-result! out)
+          (t/is (nil? (:error out)))
+          (t/is (nil? (:result out))))))
+
+    (t/testing "query profile after delete"
+      (let [data {::sq/type :profile
+                  :profile-id (:id prof)}
+            out (th/try-on! (sq/handle data))]
+
+        ;; (th/print-result! out)
+
+        (let [error (:error out)
+              error-data (ex-data error)]
+          (t/is (th/ex-info? error))
+          (t/is (= (:type error-data) :service-error))
+          (t/is (= (:name error-data) :uxbox.services.queries.profile/profile)))
+
+        (let [error (ex-cause (:error out))
+              error-data (ex-data error)]
+          (t/is (th/ex-info? error))
+          (t/is (= (:type error-data) :not-found)))))))
+
+
+;; TODO: profile deletion with teams
+;; TODO: profile deletion with owner teams
+
 
 ;; (t/deftest test-mutation-register-profile
 ;;   (let[data {:fullname "Full Name"

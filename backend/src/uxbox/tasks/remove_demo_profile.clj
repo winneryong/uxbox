@@ -32,58 +32,58 @@
   [{:keys [props] :as task}]
   (us/verify ::props props)
   (db/with-atomic [conn db/pool]
-    (remove-file-images conn (:id props))
-    (remove-images conn (:id props))
-    (remove-profile conn (:id props))))
+    #_(remove-file-images conn (:id props))
+    #_(remove-images conn (:id props))
+    #_(remove-profile conn (:id props))))
 
-(defn- remove-files
-  [files]
-  (doseq [item files]
-    (ust/delete! media/media-storage (:path item))
-    (ust/delete! media/media-storage (:thumb-path item)))
-  files)
+;; (defn- remove-files
+;;   [files]
+;;   (doseq [item files]
+;;     (ust/delete! media/media-storage (:path item))
+;;     (ust/delete! media/media-storage (:thumb-path item)))
+;;   files)
 
-(def ^:private sql:delete-file-images
-  "with images_part as (
-     select pfi.id
-       from project_file_images as pfi
-      inner join project_files as pf on (pf.id = pfi.file_id)
-      inner join projects as p on (p.id = pf.project_id)
-      where p.user_id = $1
-      limit 10
-   )
-   delete from project_file_images
-    where id in (select id from images_part)
-   returning id, path, thumb_path")
+;; (def ^:private sql:delete-file-images
+;;   "with images_part as (
+;;      select fi.id
+;;        from file_image as fi
+;;       inner join file as f on (f.id = fi.file_id)
+;;       inner join project as p on (p.id = f.project_id)
+;;       where p.user_id = $1
+;;       limit 10
+;;    )
+;;    delete from project_file_images
+;;     where id in (select id from images_part)
+;;    returning id, path, thumb_path")
 
-(defn remove-file-images
-  [conn id]
-  (vu/loop []
-    (-> (db/query conn [sql:delete-file-images id])
-        (p/then (vu/wrap-blocking remove-files))
-        (p/then (fn [images]
-                  (when (not (empty? images))
-                    (p/recur)))))))
+;; (defn remove-file-images
+;;   [conn id]
+;;   (vu/loop []
+;;     (-> (db/query conn [sql:delete-file-images id])
+;;         (p/then (vu/wrap-blocking remove-files))
+;;         (p/then (fn [images]
+;;                   (when (not (empty? images))
+;;                     (p/recur)))))))
 
-(def ^:private sql:delete-images
-  "with images_part as (
-     select img.id
-       from images as img
-      where img.user_id = $1
-      limit 10
-   )
-   delete from images
-    where id in (select id from images_part)
-   returning id, path, thumb_path")
+;; (def ^:private sql:delete-images
+;;   "with images_part as (
+;;      select img.id
+;;        from images as img
+;;       where img.profile_id = $1
+;;       limit 10
+;;    )
+;;    delete from images
+;;     where id in (select id from images_part)
+;;    returning id, path, thumb_path")
 
-(defn- remove-images
-  [conn id]
-  (vu/loop []
-    (-> (db/query conn [sql:delete-images id])
-        (p/then (vu/wrap-blocking remove-files))
-        (p/then (fn [images]
-                  (when (not (empty? images))
-                    (p/recur)))))))
+;; (defn- remove-images
+;;   [conn id]
+;;   (vu/loop []
+;;     (-> (db/query conn [sql:delete-images id])
+;;         (p/then (vu/wrap-blocking remove-files))
+;;         (p/then (fn [images]
+;;                   (when (not (empty? images))
+;;                     (p/recur)))))))
 
 (defn remove-profile
   [conn id]

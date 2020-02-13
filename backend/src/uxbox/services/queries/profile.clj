@@ -43,6 +43,7 @@
 (sq/defquery ::profile
   [{:keys [profile-id] :as params}]
   (-> (retrieve-profile db/pool profile-id)
+      (p/then' su/raise-not-found-if-nil)
       (p/then' strip-private-attrs)
       (p/then' #(images/resolve-media-uris % [:photo :photo-uri]))))
 

@@ -78,14 +78,13 @@ CREATE TABLE team_profile_rel (
 
   is_admin boolean DEFAULT false,
   is_owner boolean DEFAULT false,
-  can_edit boolean DEFAULT false
+  can_edit boolean DEFAULT false,
+
+  PRIMARY KEY (team_id, profile_id)
 );
 
 COMMENT ON TABLE team_profile_rel
      IS 'Relation between teams and profiles (NM)';
-
-CREATE INDEX team_profile_rel__profile_id__idx
-    ON team_profile_rel(profile_id);
 
 CREATE TRIGGER team_profile_rel__modified_at__tgr
 BEFORE UPDATE ON team_profile_rel

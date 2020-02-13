@@ -51,3 +51,7 @@ CREATE TRIGGER image__modified_at__tgr
 BEFORE UPDATE ON image
    FOR EACH ROW EXECUTE PROCEDURE update_modified_at();
 
+CREATE TRIGGER image__on_delete__tgr
+ AFTER DELETE ON image
+   FOR EACH ROW EXECUTE PROCEDURE handle_delete();
+

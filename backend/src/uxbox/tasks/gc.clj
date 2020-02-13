@@ -27,24 +27,3 @@
 
 ;; --- Delete Projects
 
-(def ^:private sql:delete-project
-  "delete from projects
-    where id = $1
-      and deleted_at is not null;")
-
-(s/def ::id ::us/uuid)
-(s/def ::delete-project
-  (s/keys :req-un [::id]))
-
-(defn- delete-project
-  "Clean deleted projects."
-  [{:keys [id] :as props}]
-  (us/verify ::delete-project props)
-  (db/with-atomic [conn db/pool]
-    (-> (db/query-one conn [sql:delete-project id])
-        (p/then (constantly nil)))))
-
-(defn handler
-  {:uxbox.tasks/name "delete-project"}
-  [{:keys [props] :as task}]
-  (delete-project props))

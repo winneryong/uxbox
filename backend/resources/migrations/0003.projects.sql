@@ -59,7 +59,6 @@ BEFORE UPDATE ON file
    FOR EACH ROW EXECUTE PROCEDURE update_modified_at();
 
 
-
 CREATE TABLE file_profile_rel (
   file_id uuid NOT NULL REFERENCES file(id) ON DELETE CASCADE,
   profile_id uuid NOT NULL REFERENCES profile(id) ON DELETE CASCADE,
@@ -83,11 +82,18 @@ CREATE INDEX file_profile_rel__profile_id__idx
 CREATE INDEX file_profile_rel__file_id__idx
     ON file_profile_rel(file_id);
 
+CREATE TRIGGER file_profile_rel__modified_at__tgr
+BEFORE UPDATE ON file
+   FOR EACH ROW EXECUTE PROCEDURE update_modified_at();
+
 
 
 CREATE TABLE file_image (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   file_id uuid NOT NULL REFERENCES file(id) ON DELETE CASCADE,
+
+  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  modified_at timestamptz NOT NULL DEFAULT clock_timestamp(),
 
   name text NOT NULL,
 
@@ -105,6 +111,14 @@ CREATE TABLE file_image (
 
 CREATE INDEX file_image__file_id__idx
     ON file_image(file_id);
+
+CREATE TRIGGER file_image__modified_at__tgr
+BEFORE UPDATE ON file_image
+   FOR EACH ROW EXECUTE PROCEDURE update_modified_at();
+
+CREATE TRIGGER file_image__on_delete__tgr
+ AFTER DELETE ON file_image
+   FOR EACH ROW EXECUTE PROCEDURE handle_delete();
 
 
 
@@ -134,10 +148,12 @@ CREATE FUNCTION handle_page_update()
     current_dt timestamptz := clock_timestamp();
     proj_id uuid;
   BEGIN
+    NEW.modified_at := current_dt;
+
     UPDATE file
        SET modified_at = current_dt
      WHERE id = OLD.file_id
-    RETURNING project_id
+ RETURNING project_id
       INTO STRICT proj_id;
 
     --- Update projects modified_at attribute when a
@@ -153,10 +169,6 @@ $pagechange$ LANGUAGE plpgsql;
 CREATE TRIGGER page__on_update__tgr
 BEFORE UPDATE ON page
    FOR EACH ROW EXECUTE PROCEDURE handle_page_update();
-
-CREATE TRIGGER page__modified_at__tgr
-BEFORE UPDATE ON page
-   FOR EACH ROW EXECUTE PROCEDURE update_modified_at();
 
 
 
