@@ -199,6 +199,7 @@
         (p/then' su/raise-not-found-if-nil))))
 
 
+
 ;; --- Mutation: Register Profile
 
 (declare check-profile-existence!)
@@ -267,6 +268,8 @@
                   (p/do!
                    (emails/send! conn emails/register data)
                    profile))))))
+
+
 
 ;; --- Mutation: Request Profile Recovery
 
