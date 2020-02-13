@@ -20,7 +20,7 @@
    [uxbox.db :as db]
    [uxbox.tasks.sendmail]
    [uxbox.tasks.remove-media]
-   [uxbox.tasks.remove-demo-profile]
+   [uxbox.tasks.delete-profile]
    [uxbox.tasks.impl :as impl]
    [uxbox.util.time :as dt]
    [vertx.core :as vc]
@@ -42,7 +42,7 @@
 ;; need to perform a maintenance and delete some old tasks.
 
 (def ^:private tasks
-  {"remove-demo-profile" #'uxbox.tasks.remove-demo-profile/handler
+  {"delete-profile" #'uxbox.tasks.delete-profile/handler
    "remove-media" #'uxbox.tasks.remove-media/handler
    "sendmail" #'uxbox.tasks.sendmail/handler})
 
@@ -54,7 +54,7 @@
 ;; (def ^:private schedule
 ;;   [{:id "every 1 hour"
 ;;     :cron (dt/cron "1 1 */1 * * ? *")
-;;     :fn #'uxbox.tasks.demo-gc/handler
+;;     :fn #'uxbox.tasks.gc/handler
 ;;     :props {:foo 1}}])
 
 ;; (defstate scheduler

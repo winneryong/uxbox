@@ -101,45 +101,31 @@
           (t/is (= (:id profile) (:id result))))))
     ))
 
-(t/deftest profile-deletion-1
-  (with-mocks
-    [mock {:target 'uxbox.tasks/schedule! :return nil}]
+(t/deftest profile-deletion
+  (let [prof @(th/create-profile db/pool 1)
+        file @(th/create-file db/pool (:id prof) nil 1)
+        page @(th/create-page db/pool (:id prof) (:id file) 1)]
 
-    (let [prof @(th/create-profile db/pool 1)
-          file @(th/create-file db/pool (:id prof) nil 1)
-          page @(th/create-page db/pool (:id prof) (:id file) 1)
+    (t/testing "try to delete profile not marked for deletion"
+      (let [params {:props {:profile-id (:id prof)}}
+            out (th/try-on! (uxbox.tasks.delete-profile/handler params))]
 
-          data {::sm/type :delete-profile
-                :profile-id (:id prof)}
+        ;; (th/print-result! out)
+        (t/is (nil? (:error out)))
+        (t/is (nil? (:result out)))))
 
-          out  (th/try-on! (sm/handle data))]
-
-      ;; (th/print-result! out)
-
-      (t/is (nil? (:error out)))
-      (t/is (nil? (:result out)))
-
-      ;; check the mock
-      (let [mock (deref mock)
-            mock-params (second (:call-args mock))]
-        (t/is (true? (:called? mock)))
-        (t/is (= 1 (:call-count mock)))
-        (t/is (= "delete-profile" (:name mock-params)))
-        (t/is (= (:id prof) (get-in mock-params [:props :profile-id])))))))
-
-(t/deftest profile-deletion-2
-  (let [prof @(th/create-profile db/pool 1)]
-
-    (t/testing "query profile"
+    (t/testing "query profile after delete"
       (let [data {::sq/type :profile
                   :profile-id (:id prof)}
             out (th/try-on! (sq/handle data))]
 
         ;; (th/print-result! out)
         (t/is (nil? (:error out)))
-        (t/is (map? (:result out)))))
 
-    (t/testing "delete profile"
+        (let [result (:result out)]
+          (t/is (= (:fullname prof) (:fullname result))))))
+
+    (t/testing "mark profile for deletion"
       (with-mocks
         [mock {:target 'uxbox.tasks/schedule! :return nil}]
 
@@ -148,7 +134,31 @@
               out  (th/try-on! (sm/handle data))]
           ;; (th/print-result! out)
           (t/is (nil? (:error out)))
-          (t/is (nil? (:result out))))))
+          (t/is (nil? (:result out))))
+
+        ;; check the mock
+        (let [mock (deref mock)
+              mock-params (second (:call-args mock))]
+          (t/is (true? (:called? mock)))
+          (t/is (= 1 (:call-count mock)))
+          (t/is (= "delete-profile" (:name mock-params)))
+          (t/is (= (:id prof) (get-in mock-params [:props :profile-id]))))))
+
+    (t/testing "query files after profile soft deletion"
+      (let [data {::sq/type :draft-files
+                  :profile-id (:id prof)}
+            out  (th/try-on! (sq/handle data))]
+        ;; (th/print-result! out)
+        (t/is (nil? (:error out)))
+        (t/is (= 1 (count (:result out))))))
+
+    (t/testing "try to delete profile marked for deletion"
+      (let [params {:props {:profile-id (:id prof)}}
+            out (th/try-on! (uxbox.tasks.delete-profile/handler params))]
+
+        ;; (th/print-result! out)
+        (t/is (nil? (:error out)))
+        (t/is (= (:id prof) (:result out)))))
 
     (t/testing "query profile after delete"
       (let [data {::sq/type :profile
@@ -166,67 +176,19 @@
         (let [error (ex-cause (:error out))
               error-data (ex-data error)]
           (t/is (th/ex-info? error))
-          (t/is (= (:type error-data) :not-found)))))))
+          (t/is (= (:type error-data) :not-found)))))
 
+    (t/testing "query files after profile permanent deletion"
+      (let [data {::sq/type :draft-files
+                  :profile-id (:id prof)}
+            out  (th/try-on! (sq/handle data))]
+        ;; (th/print-result! out)
+        (t/is (nil? (:error out)))
+        (t/is (= 0 (count (:result out))))))
+
+    ))
 
 ;; TODO: profile deletion with teams
 ;; TODO: profile deletion with owner teams
-
-
-;; (t/deftest test-mutation-register-profile
-;;   (let[data {:fullname "Full Name"
-;;              :profilename "profile222"
-;;              :email "profile222@uxbox.io"
-;;              :password "profile222"
-;;              ::sv/type :register-profile}
-;;        [err rsp] (th/try-on (sm/handle data))]
-;;     (println "RESPONSE:" err rsp)))
-
-;; (t/deftest test-http-validate-recovery-token
-;;   (with-open [conn (db/connection)]
-;;     (let [profile (th/create-profile conn 1)]
-;;       (with-server {:handler (uft/routes)}
-;;         (let [token (#'usu/request-password-recovery conn "profile1")
-;;               uri1 (str th/+base-url+ "/api/auth/recovery/not-existing")
-;;               uri2 (str th/+base-url+ "/api/auth/recovery/" token)
-;;               [status1 data1] (th/http-get profile uri1)
-;;               [status2 data2] (th/http-get profile uri2)]
-;;           ;; (println "RESPONSE:" status1 data1)
-;;           ;; (println "RESPONSE:" status2 data2)
-;;           (t/is (= 404 status1))
-;;           (t/is (= 204 status2)))))))
-
-;; (t/deftest test-http-request-password-recovery
-;;   (with-open [conn (db/connection)]
-;;     (let [profile (th/create-profile conn 1)
-;;           sql "select * from profile_pswd_recovery"
-;;           res (sc/fetch-one conn sql)]
-
-;;       ;; Initially no tokens exists
-;;       (t/is (nil? res))
-
-;;       (with-server {:handler (uft/routes)}
-;;         (let [uri (str th/+base-url+ "/api/auth/recovery")
-;;               data {:profilename "profile1"}
-;;               [status data] (th/http-post profile uri {:body data})]
-;;           ;; (println "RESPONSE:" status data)
-;;           (t/is (= 204 status)))
-
-;;         (let [res (sc/fetch-one conn sql)]
-;;           (t/is (not (nil? res)))
-;;           (t/is (= (:profile-id res) (:id profile))))))))
-
-;; (t/deftest test-http-validate-recovery-token
-;;   (with-open [conn (db/connection)]
-;;     (let [profile (th/create-profile conn 1)]
-;;       (with-server {:handler (uft/routes)}
-;;         (let [token (#'usu/request-password-recovery conn (:profilename profile))
-;;               uri (str th/+base-url+ "/api/auth/recovery")
-;;               data {:token token :password "mytestpassword"}
-;;               [status data] (th/http-put profile uri {:body data})
-
-;;               profile' (usu/find-full-profile-by-id conn (:id profile))]
-;;           (t/is (= status 204))
-;;           (t/is (hashers/check "mytestpassword" (:password profile'))))))))
-
-
+;; TODO: profile registration
+;; TODO: profile password recovery

@@ -20,10 +20,5 @@
    [uxbox.db :as db]
    [uxbox.util.blob :as blob]))
 
-;; TODO: add images-gc with proper resource removal
-;; TODO: add icons-gc
-;; TODO: add pages-gc
-;; TODO: test this
-
-;; --- Delete Projects
+;; TODO: delete media referenced in pendint_to_delete table
 
