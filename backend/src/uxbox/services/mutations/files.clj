@@ -12,12 +12,14 @@
    [clojure.spec.alpha :as s]
    [promesa.core :as p]
    [datoteka.core :as fs]
+   [uxbox.config :as cfg]
    [uxbox.db :as db]
    [uxbox.media :as media]
    [uxbox.images :as images]
    [uxbox.common.exceptions :as ex]
    [uxbox.common.spec :as us]
    [uxbox.common.pages :as cp]
+   [uxbox.tasks :as tasks]
    [uxbox.services.queries.files :as files]
    [uxbox.services.mutations :as sm]
    [uxbox.services.mutations.projects :as proj]
@@ -115,7 +117,7 @@
 
 ;; --- Mutation: Delete Project File
 
-(declare delete-file)
+(declare mark-file-deleted)
 
 (s/def ::delete-file
   (s/keys :req-un [::id ::profile-id]))
@@ -124,19 +126,23 @@
   [{:keys [id profile-id] :as params}]
   (db/with-atomic [conn db/pool]
     (files/check-edition-permissions! conn profile-id id)
-    (delete-file conn params)))
 
-(def ^:private sql:delete-file
+    ;; Schedule object deletion
+    (tasks/schedule! conn {:name "delete-object"
+                           :delay cfg/default-deletion-delay
+                           :props {:id id :type :file}})
+
+    (mark-file-deleted conn params)))
+
+(def ^:private sql:mark-file-deleted
   "update file
       set deleted_at = clock_timestamp()
     where id = $1
       and deleted_at is null")
 
-;; TODO: schedule task for permanent deletion
-
-(defn delete-file
+(defn mark-file-deleted
   [conn {:keys [id] :as params}]
-  (-> (db/query-one conn [sql:delete-file id])
+  (-> (db/query-one conn [sql:mark-file-deleted id])
       (p/then' su/constantly-nil)))
 
 

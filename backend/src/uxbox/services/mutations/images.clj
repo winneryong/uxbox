@@ -2,7 +2,12 @@
 ;; License, v. 2.0. If a copy of the MPL was not distributed with this
 ;; file, You can obtain one at http://mozilla.org/MPL/2.0/.
 ;;
+;; This Source Code Form is "Incompatible With Secondary Licenses", as
+;; defined by the Mozilla Public License, v. 2.0.
+;;
 ;; Copyright (c) 2019 Andrey Antukh <niwi@niwi.nz>
+
+;; TODO: need cosmetic refactor
 
 (ns uxbox.services.mutations.images
   (:require
@@ -13,9 +18,11 @@
    [promesa.exec :as px]
    [uxbox.common.exceptions :as ex]
    [uxbox.common.spec :as us]
+   [uxbox.config :as cfg]
    [uxbox.db :as db]
    [uxbox.media :as media]
    [uxbox.images :as images]
+   [uxbox.tasks :as tasks]
    [uxbox.services.mutations :as sm]
    [uxbox.services.util :as su]
    [uxbox.util.blob :as blob]
@@ -56,6 +63,8 @@
              returning *;"]
     (db/query-one db/pool [sql id profile-id name])))
 
+
+
 ;; --- Update Collection
 
 (def ^:private
@@ -79,8 +88,7 @@
 (s/def ::delete-image-collection
   (s/keys :req-un [::profile-id ::id]))
 
-(def ^:private
-  sql:delete-image-collection
+(def ^:private sql:mark-image-collection-as-deleted
   "update image_collection
       set deleted_at = clock_timestamp()
     where id = $1
@@ -89,8 +97,18 @@
 
 (sm/defmutation ::delete-image-collection
   [{:keys [id profile-id] :as params}]
-  (-> (db/query-one db/pool [sql:delete-image-collection id profile-id])
-      (p/then' su/raise-not-found-if-nil)))
+  (db/with-atomic [conn db/pool]
+    (-> (db/query-one db/pool [sql:mark-image-collection-as-deleted
+                               id profile-id])
+        (p/then' su/raise-not-found-if-nil)
+        (p/then' su/constantly-nil))
+
+    ;; Schedule object deletion
+    (tasks/schedule! conn {:name "delete-object"
+                           :delay cfg/default-deletion-delay
+                           :props {:id id :type :image-collection}})
+    nil))
+
 
 ;; --- Create Image (Upload)
 
@@ -235,14 +253,6 @@
 
 ;; --- Delete Image
 
-;; TODO: this need to be performed in the GC process
-;; (defn- delete-image-from-storage
-;;   [{:keys [path] :as image}]
-;;   (when @(ds/exists? media/images-storage path)
-;;     @(ds/delete media/images-storage path))
-;;   (when @(ds/exists? media/thumbnails-storage path)
-;;     @(ds/delete media/thumbnails-storage path)))
-
 (s/def ::delete-image
   (s/keys :req-un [::id ::profile-id]))
 
@@ -253,6 +263,13 @@
               where id = $1
                 and profile_id = $2
              returning id"]
-    (-> (db/query-one db/pool [sql id profile-id])
-        (p/then' su/raise-not-found-if-nil)
-        (p/then' su/constantly-nil))))
+    (db/with-atomic [conn db/pool]
+      ;; Schedule object deletion
+      (tasks/schedule! conn {:name "delete-object"
+                             :delay cfg/default-deletion-delay
+                             :props {:id id :type :image}})
+
+      (-> (db/query-one conn [sql id profile-id])
+          (p/then' su/raise-not-found-if-nil)
+          (p/then' su/constantly-nil)))))
+

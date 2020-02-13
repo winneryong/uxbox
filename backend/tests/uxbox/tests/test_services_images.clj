@@ -69,7 +69,7 @@
 
         ;; (th/print-result! out)
         (t/is (nil? (:error out)))
-        (t/is (= id (get-in out [:result :id])))))
+        (t/is (nil? (:result out)))))
 
     (t/testing "query collections after delete"
       (let [data {::sq/type :image-collections

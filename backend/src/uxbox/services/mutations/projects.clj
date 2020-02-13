@@ -11,9 +11,11 @@
   (:require
    [clojure.spec.alpha :as s]
    [promesa.core :as p]
+   [uxbox.config :as cfg]
    [uxbox.db :as db]
    [uxbox.common.exceptions :as ex]
    [uxbox.common.spec :as us]
+   [uxbox.tasks :as tasks]
    [uxbox.services.mutations :as sm]
    [uxbox.services.util :as su]
    [uxbox.util.blob :as blob]
@@ -124,7 +126,7 @@
 
 ;; --- Mutation: Delete Project
 
-(declare delete-project)
+(declare mark-project-deleted)
 
 (s/def ::delete-project
   (s/keys :req-un [::id ::profile-id]))
@@ -133,18 +135,21 @@
   [{:keys [id profile-id] :as params}]
   (db/with-atomic [conn db/pool]
     (check-edition-permissions! conn profile-id id)
-    (delete-project conn params)))
 
-;; TODO: send a gc task
+    ;; Schedule object deletion
+    (tasks/schedule! conn {:name "delete-object"
+                           :delay cfg/default-deletion-delay
+                           :props {:id id :type :project}})
 
-(def ^:private sql:delete-project
+    (mark-project-deleted conn params)))
+
+(def ^:private sql:mark-project-deleted
   "update project
       set deleted_at = clock_timestamp()
     where id = $1
-      and deleted_at is null
    returning id")
 
-(defn delete-project
+(defn mark-project-deleted
   [conn {:keys [id profile-id] :as params}]
-  (-> (db/query-one conn [sql:delete-project id])
+  (-> (db/query-one conn [sql:mark-project-deleted id])
       (p/then' su/constantly-nil)))

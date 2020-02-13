@@ -88,14 +88,6 @@
                                    :team-id team-id
                                    :name (str "project" i)}))
 
-;; (defn create-project-file
-;;   [conn profile-id project-id i]
-;;   (files/create-file conn {:id (mk-uuid "project-file" i)
-;;                            :profile-id profile-id
-;;                            :project-id project-id
-;;                            :name (str "sample project file" i)}))
-
-
 (defn create-file
   [conn profile-id project-id i]
   (#'files/create-file conn {:id (mk-uuid "file" i)

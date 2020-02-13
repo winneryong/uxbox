@@ -94,6 +94,7 @@ CREATE TABLE file_image (
 
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   modified_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  deleted_at timestamptz DEFAULT NULL,
 
   name text NOT NULL,
 
@@ -180,6 +181,8 @@ CREATE TABLE page_version (
 
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   modified_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  deleted_at timestamptz DEFAULT NULL,
+
   version bigint NOT NULL DEFAULT 0,
 
   label text NOT NULL DEFAULT '',

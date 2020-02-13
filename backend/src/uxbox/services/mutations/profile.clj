@@ -193,7 +193,8 @@
 (defn- update-profile-photo
   [conn profile-id path]
   (let [sql "update profile set photo=$1
-              where id=$2 and deleted_at is null
+              where id=$2
+                and deleted_at is null
              returning id"]
     (-> (db/query-one conn [sql (str path) profile-id])
         (p/then' su/raise-not-found-if-nil))))

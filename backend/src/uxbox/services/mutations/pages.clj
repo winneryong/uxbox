@@ -14,11 +14,13 @@
    [uxbox.common.pages :as cp]
    [uxbox.common.exceptions :as ex]
    [uxbox.common.spec :as us]
+   [uxbox.config :as cfg]
    [uxbox.db :as db]
    [uxbox.services.queries.files :as files]
    [uxbox.services.mutations :as sm]
    [uxbox.services.queries.pages :refer [decode-row]]
    [uxbox.services.util :as su]
+   [uxbox.tasks :as tasks]
    [uxbox.util.blob :as blob]
    [uxbox.util.sql :as sql]
    [uxbox.util.uuid :as uuid]
@@ -202,7 +204,7 @@
 
 ;; --- Mutation: Delete Page
 
-(declare delete-page)
+(declare mark-page-deleted)
 
 (s/def ::delete-page
   (s/keys :req-un [::profile-id ::id]))
@@ -212,17 +214,23 @@
   (db/with-atomic [conn db/pool]
     (p/let [page (select-page-for-update conn id)]
       (files/check-edition-permissions! conn profile-id (:file-id page))
-      (delete-page conn id))))
 
-(def ^:private sql:delete-page
+      ;; Schedule object deletion
+      (tasks/schedule! conn {:name "delete-object"
+                             :delay cfg/default-deletion-delay
+                             :props {:id id :type :page}})
+
+      (mark-page-deleted conn id))))
+
+(def ^:private sql:mark-page-deleted
   "update page
       set deleted_at = clock_timestamp()
     where id = $1
       and deleted_at is null")
 
-(defn- delete-page
+(defn- mark-page-deleted
   [conn id]
-  (-> (db/query-one conn [sql:delete-page id])
+  (-> (db/query-one conn [sql:mark-page-deleted id])
       (p/then su/constantly-nil)))
 
 
