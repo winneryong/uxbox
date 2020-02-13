@@ -36,12 +36,15 @@
   (db/with-atomic [conn db/pool]
     (-> (select-profile conn (:profile-id props))
         (p/then (fn [profile]
-                  (when (or (:is-demo profile)
-                            (not (nil? (:deleted-at profile))))
-                    (delete-profile-data conn (:id profile))))))))
+                  (if (or (:is-demo profile)
+                          (not (nil? (:deleted-at profile))))
+                    (delete-profile-data conn (:id profile))
+                    (log/warn "Profile " (:id profile)
+                              "does not match constraints for deletion")))))))
 
 (defn- delete-profile-data
   [conn profile-id]
+  (log/info "Proceding to delete all data related to profile" profile-id)
   (p/do!
    (delete-teams conn profile-id)
    (delete-files conn profile-id)

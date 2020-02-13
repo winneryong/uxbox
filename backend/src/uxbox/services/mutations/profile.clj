@@ -217,8 +217,8 @@
     (register-profile conn params)))
 
 (def ^:private sql:insert-profile
-  "insert into profile (id, fullname, email, password, photo)
-   values ($1, $2, $3, $4, '') returning *")
+  "insert into profile (id, fullname, email, password, photo, is_demo)
+   values ($1, $2, $3, $4, '', $5) returning *")
 
 (def ^:private sql:insert-email
   "insert into profile_email (profile_id, email, is_main)
@@ -241,14 +241,16 @@
 (defn- create-profile
   "Create the profile entry on the database with limited input
   filling all the other fields with defaults."
-  [conn {:keys [id fullname email password] :as params}]
+  [conn {:keys [id fullname email password is-demo] :as params}]
   (let [id (or id (uuid/next))
+        is-demo (or is-demo false)
         password (sodi.pwhash/derive password)
         sqlv1 [sql:insert-profile
                id
                fullname
                email
-               password]
+               password
+               is-demo]
         sqlv2 [sql:insert-email id email]]
     (p/let [profile (db/query-one conn sqlv1)]
       (db/query-one conn sqlv2)

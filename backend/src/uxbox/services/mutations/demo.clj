@@ -33,7 +33,9 @@
       (#'profile/create-profile conn {:id id
                                       :email email
                                       :fullname fullname
-                                      :password password})
+                                      :is-demo true
+                                      :password password
+                                      })
 
       ;; Schedule deletion of the demo profile
       (tasks/schedule! conn {:name "delete-profile"

@@ -67,7 +67,7 @@
         (p/then' (constantly nil)))))
 
 (def ^:private sql:mark-as-completed
-  "update tasks
+  "update task
       set completed_at = clock_timestamp(),
           status = 'completed'
     where id = $1")
