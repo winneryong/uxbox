@@ -26,6 +26,8 @@
    [uxbox.media :as media]
    [uxbox.services.mutations :as sm]
    [uxbox.services.mutations.images :as imgs]
+   [uxbox.services.mutations.teams :as mt.teams]
+   [uxbox.services.mutations.projects :as mt.projects]
    [uxbox.services.queries.profile :as profile]
    [uxbox.services.util :as su]
    [uxbox.util.blob :as blob]
@@ -216,7 +218,15 @@
               :code :registration-disabled))
   (db/with-atomic [conn db/pool]
     (check-profile-existence! conn params)
-    (register-profile conn params)))
+    (-> (register-profile conn params)
+        (p/then (fn [profile]
+                  ;; TODO: send a correct link for email verification
+                  (let [data {:to (:email params)
+                              :name (:fullname params)}]
+                    (p/do!
+                     (emails/send! conn emails/register data)
+                     profile)))))))
+
 
 (def ^:private sql:insert-profile
   "insert into profile (id, fullname, email, password, photo, is_demo)
@@ -243,34 +253,37 @@
 (defn- create-profile
   "Create the profile entry on the database with limited input
   filling all the other fields with defaults."
-  [conn {:keys [id fullname email password is-demo] :as params}]
+  [conn {:keys [id fullname email password demo?] :as params}]
   (let [id (or id (uuid/next))
-        is-demo (or is-demo false)
-        password (sodi.pwhash/derive password)
-        sqlv1 [sql:insert-profile
-               id
-               fullname
-               email
-               password
-               is-demo]
-        sqlv2 [sql:insert-email id email]]
-    (p/let [profile (db/query-one conn sqlv1)]
-      (db/query-one conn sqlv2)
-      profile)))
+        demo? (if (boolean? demo?) demo? false)
+        password (sodi.pwhash/derive password)]
+    (db/query-one conn [sql:insert-profile id fullname email password demo?])))
+
+(defn- create-profile-email
+  [conn {:keys [id email] :as profile}]
+  (-> (db/query-one conn [sql:insert-email id email])
+      (p/then' su/constantly-nil)))
 
 (defn register-profile
   [conn params]
-  (-> (create-profile conn params)
-      (p/then' profile/strip-private-attrs)
-      (p/then (fn [profile]
-                  ;; TODO: send a correct link for email verification
-                (let [data {:to (:email params)
-                            :name (:fullname params)}]
-                  (p/do!
-                   (emails/send! conn emails/register data)
-                   profile))))))
+  (p/let [prof (create-profile conn params)
+          _    (create-profile-email conn prof)
 
+          team (mt.teams/create-team conn {:profile-id (:id prof)
+                                           :name "Default"
+                                           :default? true})
+          _    (mt.teams/create-team-profile conn {:team-id (:id team)
+                                                   :profile-id (:id prof)})
 
+          proj (mt.projects/create-project  conn {:profile-id (:id prof)
+                                                  :team-id (:id team)
+                                                  :name "Drafts"
+                                                  :default? true})
+          _    (mt.projects/create-project-profile conn {:project-id (:id proj)
+                                                         :profile-id (:id prof)})]
+    (merge (profile/strip-private-attrs prof)
+           {:default-team team
+            :default-project proj})))
 
 ;; --- Mutation: Request Profile Recovery
 

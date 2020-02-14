@@ -47,6 +47,8 @@
       (p/then' strip-private-attrs)
       (p/then' #(images/resolve-media-uris % [:photo :photo-uri]))))
 
+
+
 ;; --- Attrs Helpers
 
 (defn strip-private-attrs

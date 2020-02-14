@@ -6,6 +6,8 @@ CREATE TABLE project (
   modified_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   deleted_at timestamptz DEFAULT NULL,
 
+  is_default boolean NOT NULL DEFAULT false,
+
   name text NOT NULL
 );
 
@@ -45,7 +47,7 @@ CREATE INDEX project_profile_rel__project_id__idx
 
 CREATE TABLE file (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  project_id uuid NULL REFERENCES project(id) ON DELETE CASCADE,
+  project_id uuid NOT NULL REFERENCES project(id) ON DELETE CASCADE,
 
   created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   modified_at timestamptz NOT NULL DEFAULT clock_timestamp(),

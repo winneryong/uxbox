@@ -17,45 +17,17 @@
 (t/use-fixtures :once th/state-init)
 (t/use-fixtures :each th/database-reset)
 
-;; (t/deftest query-project-files
-;;   (let [profile @(th/create-profile db/pool 2)
-;;         proj @(th/create-project db/pool (:id profile) 1)
-;;         pf   @(th/create-project-file db/pool (:id profile) (:id proj) 1)
-;;         pp   @(th/create-project-page db/pool (:id profile) (:id pf) 1)
-;;         data {::sq/type :project-files
-;;               :profile-id (:id profile)
-;;               :project-id (:id proj)}
-;;         out (th/try-on! (sq/handle data))]
-;;     ;; (th/print-result! out)
-;;     (t/is (nil? (:error out)))
-;;     (t/is (= 1 (count (:result out))))
-;;     (t/is (= (:id pf)   (get-in out [:result 0 :id])))
-;;     (t/is (= (:id proj) (get-in out [:result 0 :project-id])))
-;;     (t/is (= (:name pf) (get-in out [:result 0 :name])))
-;;     (t/is (= [(:id pp)] (get-in out [:result 0 :pages])))))
-
-;; (t/deftest mutation-create-project-file
-;;   (let [profile @(th/create-profile db/pool 1)
-;;         proj @(th/create-project db/pool (:id profile) 1)
-;;         data {::sm/type :create-project-file
-;;               :profile-id (:id profile)
-;;               :name "test file"
-;;               :project-id (:id proj)}
-;;         out (th/try-on! (sm/handle data))
-;;         ]
-;;     ;; (th/print-result! out)
-;;     (t/is (nil? (:error out)))
-;;     (t/is (= (:name data) (get-in out [:result :name])))
-;;     (t/is (= (:project-id data) (get-in out [:result :project-id])))))
-
-(t/deftest draft-files
+(t/deftest files-crud
   (let [prof @(th/create-profile db/pool 1)
+        team (:default-team prof)
+        proj (:default-project prof)
         file-id (uuid/next)
         page-id (uuid/next)]
 
-    (t/testing "create draft file"
-      (let [data {::sm/type :create-draft-file
+    (t/testing "create file"
+      (let [data {::sm/type :create-file
                   :profile-id (:id prof)
+                  :project-id (:id proj)
                   :id file-id
                   :name "test file"}
             out (th/try-on! (sm/handle data))]
@@ -64,7 +36,7 @@
 
         (let [result (:result out)]
           (t/is (= (:name data) (:name result)))
-          (t/is (nil? (:project-id result))))))
+          (t/is (= (:id proj) (:project-id result))))))
 
     (t/testing "rename file"
       (let [data {::sm/type :rename-file
@@ -76,8 +48,9 @@
         (t/is (nil? (:error out)))
         (t/is (nil? (:result out)))))
 
-    (t/testing "query draft files"
-      (let [data {::sq/type :draft-files
+    (t/testing "query files"
+      (let [data {::sq/type :files
+                  :project-id (:id proj)
                   :profile-id (:id prof)}
             out  (th/try-on! (sq/handle data))]
 
@@ -152,7 +125,8 @@
           (t/is (= (:type error-data) :not-found)))))
 
     (t/testing "query list files after delete"
-      (let [data {::sq/type :draft-files
+      (let [data {::sq/type :files
+                  :project-id (:id proj)
                   :profile-id (:id prof)}
             out  (th/try-on! (sq/handle data))]
 
@@ -165,7 +139,9 @@
 
 (t/deftest file-images-crud
   (let [prof @(th/create-profile db/pool 1)
-        file @(th/create-file db/pool (:id prof) nil 1)]
+        team (:default-team prof)
+        proj (:default-project prof)
+        file @(th/create-file db/pool (:id prof) (:id proj) 1)]
 
     (t/testing "upload file image"
       (let [content {:name "sample.jpg"

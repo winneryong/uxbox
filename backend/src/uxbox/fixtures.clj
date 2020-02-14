@@ -17,6 +17,7 @@
    [uxbox.db :as db]
    [uxbox.media :as media]
    [uxbox.migrations]
+   [uxbox.services.mutations.profile :as mt.profile]
    [uxbox.util.blob :as blob]
    [uxbox.util.uuid :as uuid]
    [vertx.util :as vu]))
@@ -28,11 +29,6 @@
 ;; --- Profiles creation
 
 (def password (pwhash/derive "123123"))
-
-(def sql:create-profile
-  "insert into profile (id, fullname, email, password, photo)
-   values ($1, $2, $3, $4, $5)
-   returning *;")
 
 (def sql:create-team
   "insert into team (id, name, photo)
@@ -70,8 +66,8 @@
    returning id;")
 
 (def preset-small
-  {:num-teams 300
-   :num-profiles 300
+  {:num-teams 50
+   :num-profiles 50
    :num-profiles-per-team 5
    :num-projects-per-team 5
    :num-files-per-project 5
@@ -96,7 +92,6 @@
   (let [ids (rng-ids rng n (count vdata))]
     (mapv #(nth vdata %) ids)))
 
-
 (defn rng-nth
   [rng vdata]
   (let [stream (->> (.longs rng 0 (count vdata))
@@ -120,14 +115,14 @@
 
         create-profile
         (fn [conn index]
-          (let [sql sql:create-profile
-                id (mk-uuid "profile" index)
-                fullname (str "Profile " index)
-                email (str "profile" index ".test@uxbox.io")
-                photo ""]
+          (let [id (mk-uuid "profile" index)]
             (log/info "create profile" id)
-            (-> (db/query-one conn [sql id fullname email password photo])
-                (p/then (constantly id)))))
+            (mt.profile/register-profile conn
+                                         {:id id
+                                          :fullname (str "Profile " index)
+                                          :password "123123"
+                                          :demo? true
+                                          :email (str "profile" index ".test@uxbox.io")})))
 
         create-profiles
         (fn [conn]
@@ -243,26 +238,28 @@
                   (range (:num-draft-pages-per-file opts))))
 
         create-draft-file
-        (fn [conn owner-id index]
-          (p/let [id (mk-uuid "file" "draft" owner-id index)
-                  name (str "file" index)]
+        (fn [conn owner index]
+          (p/let [owner-id (:id owner)
+                  id (mk-uuid "file" "draft" owner-id index)
+                  name (str "file" index)
+                  project-id (:id (:default-project owner))]
             (log/info "create draft file" id)
-            (db/query-one conn [sql:create-file id nil name])
+            (db/query-one conn [sql:create-file id project-id name])
             (db/query-one conn [sql:create-file-profile
                                 id owner-id true true true])
             id))
 
         create-draft-files
-        (fn [conn profile-id]
-          (p/let [file-ids (collect (partial create-draft-file conn profile-id)
+        (fn [conn profile]
+          (p/let [file-ids (collect (partial create-draft-file conn profile)
                                     (range (:num-draft-files-per-profile opts)))]
-            (p/run! (partial create-draft-pages conn profile-id) file-ids)))
+            (p/run! (partial create-draft-pages conn (:id profile)) file-ids)))
         ]
 
     (db/with-atomic [conn db/pool]
       (p/let [profiles (create-profiles conn)
               teams    (create-teams conn)]
-        (assign-teams-and-profiles conn teams profiles)
+        (assign-teams-and-profiles conn teams (map :id profiles))
         (p/run! (partial create-draft-files conn) profiles)))))
 
 (defn -main

@@ -72,10 +72,10 @@
 
 (defn create-profile
   [conn i]
-  (#'profile/create-profile conn {:id (mk-uuid "profile" i)
-                                  :fullname (str "Profile " i)
-                                  :email (str "profile" i ".test@nodomain.com")
-                                  :password "123123"}))
+  (#'profile/register-profile conn {:id (mk-uuid "profile" i)
+                                    :fullname (str "Profile " i)
+                                    :email (str "profile" i ".test@nodomain.com")
+                                    :password "123123"}))
 
 (defn create-team
   [conn profile-id i]

@@ -31,12 +31,11 @@
         password (-> (sodi.prng/random-bytes 12)
                      (sodi.util/bytes->b64s))]
     (db/with-atomic [conn db/pool]
-      (#'profile/create-profile conn {:id id
-                                      :email email
-                                      :fullname fullname
-                                      :is-demo true
-                                      :password password
-                                      })
+      (#'profile/register-profile conn {:id id
+                                        :email email
+                                        :fullname fullname
+                                        :demo? true
+                                        :password password})
 
       ;; Schedule deletion of the demo profile
       (tasks/schedule! conn {:name "delete-profile"

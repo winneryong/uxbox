@@ -103,7 +103,9 @@
 
 (t/deftest profile-deletion
   (let [prof @(th/create-profile db/pool 1)
-        file @(th/create-file db/pool (:id prof) nil 1)
+        team (:default-team prof)
+        proj (:default-project prof)
+        file @(th/create-file db/pool (:id prof) (:id proj) 1)
         page @(th/create-page db/pool (:id prof) (:id file) 1)]
 
     (t/testing "try to delete profile not marked for deletion"
@@ -145,7 +147,8 @@
           (t/is (= (:id prof) (get-in mock-params [:props :profile-id]))))))
 
     (t/testing "query files after profile soft deletion"
-      (let [data {::sq/type :draft-files
+      (let [data {::sq/type :files
+                  :project-id (:id proj)
                   :profile-id (:id prof)}
             out  (th/try-on! (sq/handle data))]
         ;; (th/print-result! out)
@@ -179,13 +182,13 @@
           (t/is (= (:type error-data) :not-found)))))
 
     (t/testing "query files after profile permanent deletion"
-      (let [data {::sq/type :draft-files
+      (let [data {::sq/type :files
+                  :project-id (:id proj)
                   :profile-id (:id prof)}
             out  (th/try-on! (sq/handle data))]
         ;; (th/print-result! out)
         (t/is (nil? (:error out)))
         (t/is (= 0 (count (:result out))))))
-
     ))
 
 ;; TODO: profile deletion with teams

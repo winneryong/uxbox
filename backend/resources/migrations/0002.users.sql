@@ -60,7 +60,9 @@ CREATE TABLE team (
   deleted_at timestamptz NULL,
 
   name text NOT NULL,
-  photo text NOT NULL
+  photo text NOT NULL,
+
+  is_default boolean NOT NULL DEFAULT false
 );
 
 CREATE TRIGGER team__modified_at__tgr

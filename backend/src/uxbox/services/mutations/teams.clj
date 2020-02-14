@@ -42,21 +42,22 @@
       team)))
 
 (def ^:private sql:insert-team
-  "insert into team (id, name, photo)
-   values ($1, $2, '')
+  "insert into team (id, name, photo, is_default)
+   values ($1, $2, '', $3)
    returning *")
 
-(defn- create-team
-  [conn {:keys [id profile-id name] :as params}]
-  (let [id (or id (uuid/next))]
-    (db/query-one conn [sql:insert-team id name])))
+(defn create-team
+  [conn {:keys [id profile-id name default?] :as params}]
+  (let [id (or id (uuid/next))
+        default? (if (boolean? default?) default? false)]
+    (db/query-one conn [sql:insert-team id name default?])))
 
 (def ^:private sql:create-team-profile
   "insert into team_profile_rel (team_id, profile_id, is_owner, is_admin, can_edit)
    values ($1, $2, true, true, true)
    returning *")
 
-(defn- create-team-profile
+(defn create-team-profile
   [conn {:keys [team-id profile-id] :as params}]
   (-> (db/query-one conn [sql:create-team-profile team-id profile-id])
       (p/then' su/constantly-nil)))

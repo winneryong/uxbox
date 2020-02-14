@@ -31,7 +31,7 @@
 
 ;; --- Query: Draft Files
 
-(def ^:private sql:draft-files
+(def ^:private sql:files
   "select distinct
           f.*,
           array_agg(pg.id) over pages_w as pages,
@@ -40,7 +40,7 @@
     inner join file_profile_rel as fp_r on (fp_r.file_id = f.id)
      left join page as pg on (f.id = pg.file_id)
     where fp_r.profile_id = $1
-      and f.project_id is null
+      and f.project_id = $2
       and f.deleted_at is null
       and pg.deleted_at is null
       and (fp_r.is_admin = true or
@@ -51,12 +51,13 @@
                                 and unbounded following)
     order by f.created_at")
 
-(s/def ::draft-files
-  (s/keys :req-un [::profile-id]))
+(s/def ::project-id ::us/uuid)
+(s/def ::files
+  (s/keys :req-un [::profile-id ::project-id]))
 
-(sq/defquery ::draft-files
-  [{:keys [profile-id] :as params}]
-  (-> (db/query db/pool [sql:draft-files profile-id])
+(sq/defquery ::files
+  [{:keys [profile-id project-id] :as params}]
+  (-> (db/query db/pool [sql:files profile-id project-id])
       (p/then (partial mapv decode-row))))
 
 ;; --- Query: File Permissions

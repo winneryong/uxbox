@@ -77,21 +77,22 @@
       proj)))
 
 (def ^:private sql:insert-project
-  "insert into project (id, team_id, name)
-   values ($1, $2, $3)
+  "insert into project (id, team_id, name, is_default)
+   values ($1, $2, $3, $4)
    returning *")
 
-(defn- create-project
-  [conn {:keys [id profile-id team-id name] :as params}]
-  (let [id (or id (uuid/next))]
-    (db/query-one conn [sql:insert-project id team-id name])))
+(defn create-project
+  [conn {:keys [id profile-id team-id name default?] :as params}]
+  (let [id (or id (uuid/next))
+        default? (if (boolean? default?) default? false)]
+    (db/query-one conn [sql:insert-project id team-id name default?])))
 
 (def ^:private sql:create-project-profile
   "insert into project_profile_rel (project_id, profile_id, is_owner, is_admin, can_edit)
    values ($1, $2, true, true, true)
    returning *")
 
-(defn- create-project-profile
+(defn create-project-profile
   [conn {:keys [project-id profile-id] :as params}]
   (-> (db/query-one conn [sql:create-project-profile project-id profile-id])
       (p/then' su/constantly-nil)))

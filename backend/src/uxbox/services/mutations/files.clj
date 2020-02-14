@@ -46,12 +46,8 @@
   (s/keys :req-un [::profile-id ::name ::project-id]
           :opt-un [::id]))
 
-(s/def ::create-draft-file
-  (s/keys :req-un [::profile-id ::name]
-          :opt-un [::id]))
-
-(sm/defmutation ::create-draft-file
-  [{:keys [profile-id] :as params}]
+(sm/defmutation ::create-file
+  [{:keys [profile-id project-id] :as params}]
   (db/with-atomic [conn db/pool]
     (p/let [file (create-file conn params)
             page (create-page conn (assoc params :file-id (:id file)))]
