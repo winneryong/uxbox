@@ -4,6 +4,11 @@
 ;;
 ;; Copyright (c) 2015-2017 Andrey Antukh <niwi@niwi.nz>
 
+;; NOTE: this namespace is deprecated and will be removed when new
+;; dashboard is implemented. Is just maintained as a temporal solution
+;; for have the old dashboard code "working".
+
+
 (ns uxbox.main.data.projects
   (:require
    [beicon.core :as rx]
