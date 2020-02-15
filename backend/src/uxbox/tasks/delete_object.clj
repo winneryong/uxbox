@@ -7,7 +7,7 @@
 ;;
 ;; Copyright (c) 2020 Andrey Antukh <niwi@niwi.nz>
 
-(ns uxbox.tasks.delete-profile
+(ns uxbox.tasks.delete-object
   "Generic task for permanent deletion of objects."
   (:require
    [clojure.spec.alpha :as s]

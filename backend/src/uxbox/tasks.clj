@@ -21,6 +21,7 @@
    [uxbox.tasks.sendmail]
    [uxbox.tasks.remove-media]
    [uxbox.tasks.delete-profile]
+   [uxbox.tasks.delete-object]
    [uxbox.tasks.impl :as impl]
    [uxbox.util.time :as dt]
    [vertx.core :as vc]
@@ -43,6 +44,7 @@
 
 (def ^:private tasks
   {"delete-profile" #'uxbox.tasks.delete-profile/handler
+   "delete-object" #'uxbox.tasks.delete-object/handler
    "remove-media" #'uxbox.tasks.remove-media/handler
    "sendmail" #'uxbox.tasks.sendmail/handler})
 
