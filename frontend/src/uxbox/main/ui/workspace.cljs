@@ -118,6 +118,8 @@
 
   (let [file (mf/deref refs/workspace-file)
         page (mf/deref refs/workspace-page)]
+    (prn "workspace" page)
+
     [:> rdnd/provider {:backend rdnd/html5}
      [:& messages-widget]
      [:& header {:page page}]

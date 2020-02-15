@@ -17,6 +17,7 @@
    [uxbox.builtins.icons :as i]
    [uxbox.main.constants :as c]
    [uxbox.main.data.projects :as udp]
+   [uxbox.main.data.dashboard :as dsh]
    [uxbox.main.store :as st]
    [uxbox.main.exports :as exports]
    [uxbox.main.ui.modal :as modal]
@@ -140,7 +141,7 @@
                    (sort-by order))
         on-click #(do
                     (dom/prevent-default %)
-                    (st/emit! udp/create-draft-file))]
+                    (st/emit! dsh/create-file))]
     [:section.dashboard-grid
      [:div.dashboard-grid-content
       [:div.dashboard-grid-row
@@ -234,8 +235,7 @@
 
 (mf/defc projects-page
   [{:keys [id] :as props}]
-  ;; (mf/use-effect #(st/emit! udp/fetch-projects))
-  (mf/use-effect {:fn #(st/emit! (udp/initialize id))
+  (mf/use-effect {:fn #(st/emit! dsh/initialize-drafts)
                   :deps #js [id]})
   [:section.dashboard-content
    [:& nav {:id id}]

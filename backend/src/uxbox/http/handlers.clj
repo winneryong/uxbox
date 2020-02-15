@@ -66,12 +66,11 @@
   [req]
   (let [data (:body-params req)
         user-agent (get-in req [:headers "user-agent"])]
-    (-> (sm/handle (assoc data ::sm/type :login))
-        (p/then #(session/create (:id %) user-agent))
-        (p/then' (fn [token]
-                   {:status 204
-                    :cookies {"auth-token" {:value token :path "/"}}
-                    :body ""})))))
+    (p/let [profile (sm/handle (assoc data ::sm/type :login))
+            token   (session/create (:id profile) user-agent)]
+      {:status 200
+       :cookies {"auth-token" {:value token :path "/"}}
+       :body profile})))
 
 (defn logout-handler
   [req]

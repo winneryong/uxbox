@@ -71,10 +71,13 @@
             (when-not (check-password profile password)
               (ex/raise :type :validation
                         :code ::wrong-credentials))
-
-            {:id (:id profile)})]
-    (-> (retrieve-profile-by-email db/pool email)
-        (p/then' check-profile))))
+            profile)]
+    (db/with-atomic [conn db/pool]
+      (p/let [prof (-> (retrieve-profile-by-email conn email)
+                       (p/then' check-profile)
+                       (p/then' profile/strip-private-attrs))
+              addt (profile/retrieve-additional-data conn (:id prof))]
+        (merge prof addt)))))
 
 (def sql:profile-by-email
   "select u.*

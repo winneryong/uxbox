@@ -278,6 +278,7 @@
 (declare initialize-file)
 (declare fetch-file-with-users)
 (declare fetch-pages)
+(declare fetch-page)
 
 (defn initialize
   "Initialize the workspace state."
@@ -289,20 +290,31 @@
     (watch [_ state stream]
       (let [file (:workspace-file state)]
         (if (not= (:id file) file-id)
+          (do
+            ;; (reset! st/loader true)
+            (rx/merge
+             (rx/of (fetch-file-with-users file-id)
+                    (fetch-pages file-id)
+                    (initialize-layout file-id)
+                    (fetch-images file-id))
+             (->> (rx/zip (rx/filter (ptk/type? ::pages-fetched) stream)
+                          (rx/filter (ptk/type? ::file-fetched) stream))
+                  (rx/take 1)
+                  (rx/do (fn [_]
+                           (uxbox.util.timers/schedule 500 #(reset! st/loader false))))
+                  (rx/mapcat (fn [_]
+                               (rx/of (initialize-file file-id)
+                                      (initialize-page page-id)
+                                      #_(initialize-alignment page-id)))))))
+
           (rx/merge
-           (rx/of (fetch-file-with-users file-id)
-                  (fetch-pages file-id)
-                  (initialize-layout file-id)
-                  (fetch-images file-id))
-           (->> (rx/zip (rx/filter (ptk/type? ::pages-fetched) stream)
-                        (rx/filter (ptk/type? ::file-fetched) stream))
+           (rx/of (fetch-page page-id))
+           (->> stream
+                (rx/filter (ptk/type? ::pages-fetched))
                 (rx/take 1)
-                (rx/do #(reset! st/loader false))
-                (rx/mapcat #(rx/of (initialize-file file-id)
-                                   (initialize-page page-id)
-                                   #_(initialize-alignment page-id)))))
-          (rx/of (initialize-file file-id)
-                 (initialize-page page-id)))))))
+                (rx/merge-map (fn [_]
+                                (rx/of (initialize-file file-id)
+                                       (initialize-page page-id)))))))))))
 
 (defn- initialize-layout
   [file-id]
@@ -353,9 +365,10 @@
   (ptk/reify ::finalize
     ptk/UpdateEvent
     (update [_ state]
-      (dissoc state
-              :workspace-page
-              :workspace-data))))
+      state
+      #_(dissoc state
+                :workspace-page
+                :workspace-data))))
 
 (def diff-and-commit-changes
   (ptk/reify ::diff-and-commit-changes
@@ -439,7 +452,6 @@
 
 (defn file-fetched
   [{:keys [id] :as file}]
-  (prn "file-fetched" file)
   (us/verify ::file file)
   (ptk/reify ::file-fetched
     ptk/UpdateEvent
@@ -465,11 +477,20 @@
 (defn fetch-pages
   [file-id]
   (us/verify ::us/uuid file-id)
-  (reify
+  (ptk/reify ::fetch-pages
     ptk/WatchEvent
     (watch [_ state s]
       (->> (rp/query :pages {:file-id file-id})
            (rx/map pages-fetched)))))
+
+(defn fetch-page
+  [page-id]
+  (us/verify ::us/uuid page-id)
+  (ptk/reify ::fetch-pages
+    ptk/WatchEvent
+    (watch [_ state s]
+      (->> (rp/query :page {:id page-id})
+           (rx/map #(pages-fetched [%]))))))
 
 (defn pages-fetched
   [pages]

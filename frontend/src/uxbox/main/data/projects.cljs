@@ -91,6 +91,7 @@
               (when filter {:filter filter})))))
 
 ;; --- Fetch Projects
+
 (declare projects-fetched)
 
 (def fetch-projects
@@ -143,19 +144,6 @@
            (rx/map #(files-fetched [%]))))))
 
 ;; --- Files Fetched
-
-(defn files-fetched
-  [files]
-  (us/verify (s/every ::file) files)
-  (ptk/reify ::files-fetched
-    cljs.core/IDeref
-    (-deref [_] files)
-
-    ptk/UpdateEvent
-    (update [_ state]
-      (let [state (dissoc state :files)
-            assoc-file #(assoc-in %1 [:files (:id %2)] %2)]
-        (reduce assoc-file state files)))))
 
 ;; --- Create Project
 
